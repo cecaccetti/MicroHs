@@ -211,7 +211,37 @@ compileModule flags impt mn pathfn file = do
   t4 <- liftIO getTimeMilli
 
   let
-    cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- tBindingsOf dmdl ]
+    opMoved =
+      let
+        isOp (Lit (LPrim "==")) = True
+        -- isOp (Lit (LPrim "*")) = True
+        -- isOp (Lit (LPrim "+")) = True
+        -- isOp (Lit (LPrim "-")) = True
+        isOp _ = False
+        ops = filter (\(_, e) -> isOp e) (tBindingsOf dmdl)
+        nonOps = filter (\(_, e) -> not $ isOp e) (tBindingsOf dmdl)
+        -- subOps :: (Ident, Exp) -> Exp -> Exp
+        -- subOps (i, op) (Var i') = Lit (LPrim "!!")--if i == i' then op else Var i'
+        -- subOps (i, op) (App f a) = Lit (LPrim "??")--App (subOps (i, op) f) (subOps (i, op) a)
+        -- subOps (i, op) (Lam x a) = Lit (LPrim "##")--Lam x (subOps (i, op) a)
+        -- subOps (i, op) ae = Lit (LPrim (show i))--ae
+        -- funs = map subOps ops
+        subOps :: Exp -> Exp
+        subOps (Var i)
+          | i == mkIdent "NanoPrelude.==" = Lit (LPrim "==")
+          | i == mkIdent "NanoPrelude.+" = Lit (LPrim "+")
+          | i == mkIdent "NanoPrelude.-" = Lit (LPrim "-")
+          | i == mkIdent "NanoPrelude.*" = Lit (LPrim "*")
+          | otherwise = Var i
+        subOps (App f a) = App (subOps f) (subOps a)
+        subOps (Lam x a) = Lam x (subOps a)
+        subOps ae = ae
+      in
+        -- map (\(i, e) -> (i, foldr ($) e funs)) nonOps ++ ops
+        -- nonOps ++ map (\(i, _) -> (i, Lit (LPrim "!!"))) ops
+        map (\(i, e) -> (i, subOps e)) (tBindingsOf dmdl)
+  let
+    cmdl = setBindings dmdl [ (i, compileOpt e) | (i, e) <- opMoved ]
   () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
 --  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli

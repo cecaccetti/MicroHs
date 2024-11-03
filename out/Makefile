@@ -8,11 +8,11 @@ all: $(COMB_FILES)
 
 # Rule to handle single argument
 %:
-	../bin/mhs -i../lib $@ -o$@.comb
+	mhs -i../lib $@ -o$@.comb
 
 # Pattern rule to convert .hs to .comb
 %.comb: %.hs
-	../bin/mhs -i../lib $* -o$@
+	mhs -i../lib $* -o$@
 
 # Clean rule to remove generated files
 clean:

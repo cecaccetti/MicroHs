@@ -13,7 +13,7 @@ import MicroHs.State
 -- Version number of combinator file.
 -- Must match version in eval.c.
 combVersion :: String
-combVersion = "v7.0\n"
+combVersion = "v1.0(sc)\n"
 
 toStringCMdl :: (Ident, [LDef]) -> (Int, String)
 toStringCMdl (mainName, ds) =
@@ -36,7 +36,7 @@ toStringCMdl (mainName, ds) =
           (i', seen', r') <- get
           put (i'+1, M.insert n (ref i') seen', def r' (i', e))
     (_,(ndefs, defs, res)) = runState (dfs mainName) (0, M.empty, toStringP emain)
-    ref i = Var $ mkIdent $ "_" ++ show i
+    ref i = Var $ mkIdent $ "FUN" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
     findIdent n = findIdentIn n defs
@@ -72,6 +72,7 @@ toStringP ae =
     Lam _x _e -> undefined -- (("(\\" ++ showIdent x ++ " ") ++) . toStringP e . (")" ++)
     --App f a -> ("(" ++) . toStringP f . (" " ++) . toStringP a . (")" ++)
     App f a -> toStringP f . toStringP a . ("@" ++)
+    Sc _ _ _ -> (show ae ++) . (' ' :)
 
 quoteString :: String -> String
 quoteString s =

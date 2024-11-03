@@ -88,10 +88,87 @@ cSpread = Lit (LPrim "S")
 cP :: Exp
 cP = Lit (LPrim "P")
 
+scI :: Exp
+scI = Sc 1 X [0]
+
+scK :: Exp
+scK = Sc 2 X [0]
+
+scB :: Exp
+scB = Sc 3 (At X (At X X)) [0, 1, 2]
+
+scS :: Exp
+scS = Sc 3 (At (At X X) (At X X)) [0, 2, 1, 2]
+
+scC :: Exp
+scC = Sc 3 (At (At X X) X) [0, 2, 1]
+
+scA :: Exp
+scA = Sc 2 X [1]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt = improveT . compileExp
+-- compileOpt = id
+compileOpt = compileExpSc . removeSKI . opInfix
+-- compileOpt = improveT . compileExp
+-- compileOpt e = Sc 3 (At X X) [1, 2]
+
+removeSKI :: Exp -> Exp
+removeSKI (App f a) = App (removeSKI f) (removeSKI a)
+removeSKI (Lam x a) = Lam x (removeSKI a)
+removeSKI ae
+  | isPrim "I" ae = scI
+  | isPrim "K" ae = scK
+  | isPrim "B" ae = scB
+  | isPrim "S" ae = scS
+  | isPrim "C" ae = scC
+  | isPrim "A" ae = scA
+  -- some more...
+  | otherwise = ae
+
+opInfix :: Exp -> Exp
+-- opInfix (App (App (Var op) i2) i1)
+--   | isOp op = App (App (opInfix i1) (Var op)) (opInfix i2)
+--   | otherwise = App (opInfix (App (Var op) i2)) (opInfix i1)
+opInfix (App (App (Lit (LPrim lit)) i1) i2)
+  | lit == "==" || lit == "+" || lit == "-" || lit == "*" =
+      App (App (opInfix i1) (Lit (LPrim lit))) (opInfix i2)
+  | otherwise = App (opInfix (App (Lit (LPrim lit)) i2)) (opInfix i1)
+  -- = App (App (opInfix i1) (Lit (LPrim "=="))) (opInfix i2)
+opInfix (App f a) = App (opInfix f) (opInfix a)
+opInfix (Lam x a) = Lam x (opInfix a)
+opInfix ae = ae
+
+compileExpSc :: Exp -> Exp
+compileExpSc ae =
+  case ae of
+    App f a -> App (compileExpSc f) (compileExpSc a)
+    Lam x a -> abstractSc x a
+    _       -> ae
+
+abstractSc :: Ident -> Exp -> Exp
+abstractSc x ae =
+  case ae of
+    Var y -> if x == y then scI else App scK (Var y)
+    App f a -> scCombine (abstractSc x f) (abstractSc x a)
+    Lam y e -> abstractSc x $ abstractSc y e
+    Lit _ -> App scK ae
+    Sc _ _ _ -> App scK ae
+
+scCombine :: Exp -> Exp -> Exp
+scCombine a1 a2 =
+  let
+    (c1, args1) = spine a1
+    (c2, args2) = spine a2
+    args = args1 ++ args2
+  in
+    case (c1, c2) of
+      (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
+        foldl App c args
+          where 
+            c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ (ar1 - 1)) is2)
+            redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
+      _ -> app2 scS a1 a2
 
 compileExp :: Exp -> Exp
 compileExp ae =
@@ -107,6 +184,7 @@ abstract x ae =
     App f a -> cS (abstract x f) (abstract x a)
     Lam y e -> abstract x $ abstract y e
     Lit _ -> cK ae
+    Sc _ _ _ -> cK ae
 
 cK :: Exp -> Exp
 cK e  = App cConst e
