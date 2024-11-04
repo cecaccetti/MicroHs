@@ -66,7 +66,36 @@ prim :: String -> (String -> String)
 prim op = ("prmBuilder(\"" ++) . (op ++) . ("\"),\n" ++)
 
 getPatNum :: Pat -> Int
-getPatNum _ = 42
+getPatNum X = 0
+getPatNum p =
+  let
+    pre = map varHole [getHoles p - 1, getHoles p - 2 .. 1]
+  in idxHole p + sum pre - 1
+
+varHole :: Int -> Int
+varHole 1 = 1
+varHole 2 = 1
+varHole n =
+  let
+    pairs = [ (i, n - i) | i <- [1..n], n - i >= 1 ]
+  in sum (map (\(a, b) -> varHole a * varHole b) pairs)
+
+getHoles :: Pat -> Int
+getHoles X = 1
+getHoles (At a b) = getHoles a + getHoles b
+
+idxSplit :: Pat -> Int
+idxSplit X = 1
+idxSplit (At a b) = (idxHole a - 1) * varHole (getHoles b) + idxHole b
+
+idxHole :: Pat -> Int
+idxHole X = 1
+idxHole (At a b) =
+  let
+    ah = getHoles a
+    bh = getHoles b
+    pairs = [ (i, ah + bh - i) | i <- [ah+1..ah+bh], ah + bh - i >= 1]
+  in idxSplit (At a b) + foldr (+) 0 (map (\(a, b) -> varHole a * varHole b) pairs)
 
 listPrint :: [Int] -> String
 listPrint [] = "List()"
@@ -78,7 +107,6 @@ example :: String -> String
 example = prog "example" $ template $ app $ comb 2 X [2,0,1] . int 13
 
 genRom :: (Ident, [LDef]) -> String
---genRom (i, _) = header ++ object "ProgramBin" example ""
 genRom (mainName, ds) =
   let
     dMap = M.fromList ds
