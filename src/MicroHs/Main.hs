@@ -23,6 +23,7 @@ import MicroHs.Translate
 import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
+import MicroHs.GenRom
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -247,6 +248,8 @@ mainCompile flags mn = do
       writeFile outFile outData
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
+     else if ".scala" `isSuffixOf` outFile then
+      writeFile outFile $ genRom cmdl
      else do
        (fn, h) <- openTmpFile "mhsc.c"
        hPutStr h cCode

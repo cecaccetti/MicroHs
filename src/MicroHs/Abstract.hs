@@ -126,15 +126,19 @@ removeSKI ae
   -- some more...
   | otherwise = ae
 
+isOp :: Lit -> Bool
+isOp (LPrim lit)
+  | lit == "==" = True
+  | lit == "+" = True
+  | lit == "-" = True
+  | lit == "*" = True
+  | otherwise = False
+isOp _ = False
+
 opInfix :: Exp -> Exp
--- opInfix (App (App (Var op) i2) i1)
---   | isOp op = App (App (opInfix i1) (Var op)) (opInfix i2)
---   | otherwise = App (opInfix (App (Var op) i2)) (opInfix i1)
-opInfix (App (App (Lit (LPrim lit)) i1) i2)
-  | lit == "==" || lit == "+" || lit == "-" || lit == "*" =
-      App (App (opInfix i1) (Lit (LPrim lit))) (opInfix i2)
-  | otherwise = App (opInfix (App (Lit (LPrim lit)) i2)) (opInfix i1)
-  -- = App (App (opInfix i1) (Lit (LPrim "=="))) (opInfix i2)
+opInfix (App (App (Lit l) i1) i2)
+  | isOp l = App (App (opInfix i1) (Lit l)) (opInfix i2)
+  | otherwise = App (opInfix (App (Lit l) i2)) (opInfix i1)
 opInfix (App f a) = App (opInfix f) (opInfix a)
 opInfix (Lam x a) = Lam x (opInfix a)
 opInfix ae = ae
