@@ -6,6 +6,7 @@ import Prelude(); import MHSPrelude
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))
+import MicroHs.GenRom(getHoles)
 
 --
 -- Used combinators
@@ -168,10 +169,13 @@ scCombine a1 a2 =
   in
     case (c1, c2) of
       (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
-        foldl App c args
-          where 
-            c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ (ar1 - 1)) is2)
-            redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
+        if getHoles p1 + getHoles p2 <= 6 -- FIXME: parameterise this
+        then let
+          c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ (ar1 - 1)) is2)
+          redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
+          in foldl App c args   
+        else
+          app2 scS a1 a2
       _ -> app2 scS a1 a2
 
 compileExp :: Exp -> Exp

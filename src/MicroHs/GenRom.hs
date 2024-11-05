@@ -1,4 +1,4 @@
-module MicroHs.GenRom(genRom) where
+module MicroHs.GenRom(genRom, getHoles) where
 import Prelude(); import MHSPrelude
 import Data.Char(ord, chr)
 import Data.List
@@ -148,10 +148,10 @@ buildTemplate ae =
       (i, s, as) <- get
       case e of
         App f (App a1 a2) -> do
-          put (i + 1, freeText "", as)
+          put (i, freeText "", as)
           build (App a1 a2)
           (i', s', as') <- get
-          put (i', ptr i . s, s' : as')
+          put (i' + 1, ptr i' . s, as' ++ [s'])
           build f
         App f a -> do
           put(i, atom a . s, as)
