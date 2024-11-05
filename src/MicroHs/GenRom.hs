@@ -1,11 +1,9 @@
-module MicroHs.GenRom(genRom, getHoles) where
+module MicroHs.GenRom(genRom) where
 import Prelude(); import MHSPrelude
-import Data.Char(ord, chr)
 import Data.List
 import qualified MicroHs.IdentMap as M
 import Data.Maybe
 import MicroHs.Desugar(LDef)
-import MicroHs.EncodeData(encList)
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
 import MicroHs.Ident(Ident(..), showIdent, mkIdent)
@@ -16,10 +14,6 @@ import MicroHs.State
 header :: String
 header = "\
  \package mutator\n\
- \import chisel3._\n\
- \import chisel3.util._\n\
- \import common._\n\
- \import common.SystemConfig._\n\
  \import common.Helper._\n\
  \ \n"
 
@@ -79,10 +73,6 @@ varHole n =
   let
     pairs = [ (i, n - i) | i <- [1..n], n - i >= 1 ]
   in sum (map (\(a, b) -> varHole a * varHole b) pairs)
-
-getHoles :: Pat -> Int
-getHoles X = 1
-getHoles (At a b) = getHoles a + getHoles b
 
 idxSplit :: Pat -> Int
 idxSplit X = 1

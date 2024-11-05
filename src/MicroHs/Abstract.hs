@@ -6,7 +6,6 @@ import Prelude(); import MHSPrelude
 import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))
-import MicroHs.GenRom(getHoles)
 
 --
 -- Used combinators
@@ -109,10 +108,8 @@ scA = Sc 2 X [1]
 --------------------
 
 compileOpt :: Exp -> Exp
--- compileOpt = id
-compileOpt = compileExpSc . removeSKI . opInfix
+compileOpt = topOptimise . compileExpSc . removeSKI . opInfix
 -- compileOpt = improveT . compileExp
--- compileOpt e = Sc 3 (At X X) [1, 2]
 
 removeSKI :: Exp -> Exp
 removeSKI (App f a) = App (removeSKI f) (removeSKI a)
@@ -169,7 +166,7 @@ scCombine a1 a2 =
   in
     case (c1, c2) of
       (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
-        if getHoles p1 + getHoles p2 <= 6 -- FIXME: parameterise this
+        if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 6 -- FIXME: parameterise this
         then let
           c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ (ar1 - 1)) is2)
           redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
@@ -177,6 +174,30 @@ scCombine a1 a2 =
         else
           app2 scS a1 a2
       _ -> app2 scS a1 a2
+
+topOptimise :: Exp -> Exp
+topOptimise ae = 
+  case ae of
+    App f a ->
+      let
+        (c, args) = spine ae
+        isOnlyLast :: Int -> [Int] -> Bool
+        isOnlyLast x xs = last xs == x && count x xs == 1
+          where count n = length . filter (== n)
+        smallTail (At _ X) = True
+        smallTail _ = False
+        stripTail (At p X) = p
+        stripTail p = p
+      in
+        case c of
+          Sc ar p is ->
+            if ar == length args
+            then fromPat p is args
+            else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p
+            then fromPat (stripTail p) (init is) args
+            else fromSpine (c, map topOptimise args)
+          _ -> fromSpine (c, map topOptimise args)
+    _ -> ae
 
 compileExp :: Exp -> Exp
 compileExp ae =

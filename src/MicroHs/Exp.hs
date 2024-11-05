@@ -9,6 +9,7 @@ module MicroHs.Exp(
   app2, app3, cFlip,
   allVarsExp, freeVars,
   lams, apps, spine,
+  getHoles, fromSpine, fromPat,
   ) where
 import Prelude(); import MHSPrelude hiding((<>))
 import Data.Char
@@ -25,6 +26,10 @@ type Idx = Int
 
 data Pat = X | At Pat Pat
   deriving (Eq)
+
+getHoles :: Pat -> Int
+getHoles X = 1
+getHoles (At a b) = getHoles a + getHoles b
 
 instance Show Pat where
   show X = "X"
@@ -123,4 +128,16 @@ spine ae = spine' ae []
       case e of
         App f a -> spine' f (a : acc)
         _ -> (e, acc)
-    
+
+fromSpine :: (Exp, [Exp]) -> Exp
+fromSpine (f, []) = f
+fromSpine (f, e : es) = fromSpine (App f e, es)
+
+fromPat :: Pat -> [Idx] -> [Exp] -> Exp
+fromPat X [i] es = es !! i
+fromPat (At p1 p2) is es =
+  let
+    (is1, is2) = splitAt (getHoles p1) is
+  in
+    App (fromPat p1 is1 es) (fromPat p2 is2 es)
+fromPat _ _ _ = error "pattern holes and index list mismatch."
