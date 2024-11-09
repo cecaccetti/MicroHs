@@ -107,13 +107,14 @@ genRom (mainName, ds) =
         Just _ -> return ()
         Nothing -> do
           -- Put placeholder for n in seen.
-          put (i + 1, M.insert n (Var n) seen, r)
-          -- Walk n's children
           let e = findIdentIn n dMap
+          put (i + 1, M.insert n (ref i) seen, def r e)
+          -- Walk n's children
+          
           mapM_ dfs $ freeVars e
           -- Now that n's children are done, compute its actual entry.
-          (i', seen', r') <- get
-          put (i', M.insert n (ref i) seen', def r' e)
+          -- (i', seen', r') <- get
+          -- put (i', seen', def r' e)
           
     (_, (_, defs, res)) = runState (dfs mainName) (0, M.empty, freeText "")
     ref i = Var $ mkIdent $ "FUN" ++ show i
@@ -126,7 +127,7 @@ genRom (mainName, ds) =
         App f a -> App (substv f) (substv a)
         e -> e
     def :: (String -> String) -> Exp -> (String -> String)
-    def r e = buildTemplate (substv e) . r 
+    def r e = r . buildTemplate (substv e) 
   in header ++ object "ProgramBin" (prog "prog" res) ""
 
 buildTemplate :: Exp -> (String -> String)
