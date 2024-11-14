@@ -100,24 +100,48 @@ genRom :: (Ident, [LDef]) -> String
 genRom (mainName, ds) =
   let
     dMap = M.fromList ds
-    dfs :: Ident -> State (Int, M.Map Exp, String -> String) ()
+    -- state: 1. fun counter; 2. app counter; 3. function map; 4. resulting string
+    dfs :: Ident -> State (Int, Int, M.Map Exp, String -> String) ()
     dfs n = do
-      (i, seen, r) <- get
+      (i, ptr, seen, r) <- get
       case M.lookup n seen of
         Just _ -> return ()
         Nothing -> do
-          -- Put placeholder for n in seen.
           let e = findIdentIn n dMap
-          put (i + 1, M.insert n (ref i) seen, def r e (show i ++ showIdent n))
+          put (i, ptr + 1, M.insert n (ref ptr) seen, r)
+          -- print this function
+          buildFunc (substv e) (showIdent n)
+          (i', ptr', seen', r') <- get
+          put (i + 1, ptr', seen', r')
           -- Walk n's children
-          
           mapM_ dfs $ freeVars e
-          -- Now that n's children are done, compute its actual entry.
-          -- (i', seen', r') <- get
-          -- put (i', seen', def r' e)
+
+    buildFunc :: Exp -> String -> State (Int, Int, M.Map Exp, String -> String) ()
+    buildFunc e name =
+      let
+        -- state: 1. ptr counter; 2. current spine; 3. apps
+        build :: Exp -> State (Int, String -> String, [String -> String]) ()
+        build e = do
+          (i, s, as) <- get
+          case e of
+            App f (App a1 a2) -> do
+              put (i, freeText "", as)
+              build (App a1 a2)
+              (i', s', as') <- get
+              put (i' + 1, ptr i' . s, as' ++ [s'])
+              build f
+            App f a -> do
+              put(i, atom a . s, as)
+              build f
+            _ -> put(i, atom e . s, as)
+      in do
+      (i, ptr, seen, r) <- get
+      let (_, (ptr', spn, aps)) = runState (build e) (ptr, freeText "", [])
+      put (i, ptr', seen, r . ((" // FUN" ++ show i ++ name  ++ "\n") ++) . app spn . foldr ((.) . app) (freeText "") aps)
+           
           
-    (_, (_, defs, res)) = runState (dfs mainName) (0, M.empty, freeText "")
-    ref i = Var $ mkIdent $ "FUN" ++ show i
+    (_, (_, _, defs, res)) = runState (dfs mainName) (0, 0, M.empty, freeText "")
+    ref i = Var $ mkIdent $ "PTR" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
     findIdent n = findIdentIn n defs
@@ -155,7 +179,7 @@ buildTemplate ae funId =
 atom :: Exp -> (String -> String)
 atom ae =
   case ae of
-    Var i -> if "FUN" `isPrefixOf` (showIdent i) then fun $ read (drop 3 (showIdent i))
+    Var i -> if "PTR" `isPrefixOf` (showIdent i) then ptr $ read (drop 3 (showIdent i))
                else error "Strange Var exists."
     Lit (LInt i) -> int i
     Lit (LPrim "Y") -> y

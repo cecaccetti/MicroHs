@@ -246,42 +246,7 @@ compileModule flags impt mn pathfn file = do
     scGraphs = [ (i, compileOpt e) | (i, e) <- opMoved ]
 
   let
-    cmdl =
-      let
-        splitNested :: [(Ident, Exp)] -> [(Ident, Exp)]
-        splitNested graphs =
-          let
-            -- state: 1. current let-bindings; 2. function name prefix; 3. splitted functions
-            split :: Ident -> Exp -> S.State (Int, String, [(Ident, Exp)]) Exp
-            split ident e = do
-              (i, pre, funs) <- S.get
-              case e of
-                App f (App e1 e2) -> do
-                  if i < 3 -- FIXME: parameterise this
-                  then do
-                    -- can have more let bindings
-                    S.put (i + 1, pre, funs)
-                    a' <- split ident (App e1 e2)
-                    -- (i', pre', funs') <- get
-                    f' <- split ident f
-                    return (App f' a')
-                  else do
-                    -- no more let bindings
-                    let newId = mkIdent (pre ++ showIdent ident)
-                    S.put (i, '$' : pre, (newId, App e1 e2) : funs)
-                    f' <- split ident f
-                    return (App f' (Var newId))
-                App f a -> do
-                  f' <- split ident f
-                  return (App f' a)
-                _ -> do
-                  return e
-          in
-            concatMap (\(i, e) ->
-                        let
-                          (res, (_, _, funs)) = S.runState (split i e) (0, "$", [])
-                        in (i, res) : funs) graphs -- FIXME: not handling new functions' split; the new function name is also not unique
-      in setBindings dmdl (splitNested scGraphs)
+    cmdl = setBindings dmdl scGraphs
   () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
 --  () <- return $ rnfErr syms same for this, but worse total time
   t5 <- liftIO getTimeMilli
