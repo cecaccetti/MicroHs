@@ -37,8 +37,8 @@ template :: (String -> String) -> (String -> String) -> (String -> String)
 template comment r = ("templateBuilder( //" ++) . comment . ("\n" ++) . r . ("\n),\n" ++)
 
 -- spine application
-app :: (String -> String) -> (String -> String)
-app r = ("appBuilder(\n" ++) . r . ("),\n" ++)
+app :: Int -> (String -> String) -> (String -> String)
+app offset r = ("appBuilder( // " ++) . (show offset ++) . ("\n" ++) . r . ("),\n" ++)
 
 -- atoms
 comb :: Int -> Pat -> [Int] -> (String -> String)
@@ -128,7 +128,7 @@ genRom (mainName, ds) =
               put (i, freeText "", as)
               build (App a1 a2)
               (i', s', as') <- get
-              put (i' + 1, ptr i' . s, as' ++ [s'])
+              put (i' + 1, ptr i' . s, as' ++ [app i' s'])
               build f
             App f a -> do
               put(i, atom a . s, as)
@@ -137,7 +137,7 @@ genRom (mainName, ds) =
       in do
       (i, ptr, seen, r) <- get
       let (_, (ptr', spn, aps)) = runState (build e) (ptr, freeText "", [])
-      put (i, ptr', seen, r . ((" // FUN" ++ show i ++ name  ++ "\n") ++) . app spn . foldr ((.) . app) (freeText "") aps)
+      put (i, ptr', seen, r . ((" // FUN" ++ show i ++ name  ++ "\n") ++) . app (ptr - 1) spn . foldr (.) (freeText "") aps)
            
           
     (_, (_, _, defs, res)) = runState (dfs mainName) (0, 0, M.empty, freeText "")
@@ -150,31 +150,7 @@ genRom (mainName, ds) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    def :: (String -> String) -> Exp -> String -> (String -> String)
-    def r e funId = r . buildTemplate (substv e) funId
   in header ++ object "ProgramBin" (prog "prog" res) ""
-
-buildTemplate :: Exp -> String -> (String -> String)
-buildTemplate ae funId =
-  let
-    -- state: 1. ptr counter; 2. current spine; 3. apps
-    build :: Exp -> State (Int, String -> String, [String -> String]) ()
-    build e = do
-      (i, s, as) <- get
-      case e of
-        App f (App a1 a2) -> do
-          put (i, freeText "", as)
-          build (App a1 a2)
-          (i', s', as') <- get
-          put (i' + 1, ptr i' . s, as' ++ [s'])
-          build f
-        App f a -> do
-          put(i, atom a . s, as)
-          build f
-        _ -> put(i, atom e . s, as)
-
-    (_, (_, spn, aps)) = runState (build ae) (0, freeText "", [])
-  in template (funId ++) (app spn . (show (length aps) ++) . (",\n" ++) . foldr ((.) . app) (freeText "") aps)
 
 atom :: Exp -> (String -> String)
 atom ae =
