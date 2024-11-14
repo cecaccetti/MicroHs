@@ -280,7 +280,7 @@ compileModule flags impt mn pathfn file = do
             concatMap (\(i, e) ->
                         let
                           (res, (_, _, funs)) = S.runState (split i e) (0, "$", [])
-                        in (i, res) : funs) graphs
+                        in (i, res) : funs) graphs -- FIXME: not handling new functions' split; the new function name is also not unique
       in setBindings dmdl (splitNested scGraphs)
   () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC
 --  () <- return $ rnfErr syms same for this, but worse total time

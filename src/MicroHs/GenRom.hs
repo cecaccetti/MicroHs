@@ -33,8 +33,8 @@ prog :: String -> (String -> String) -> (String -> String)
 prog name r = val name (("Seq(\n" ++) . r . (")" ++)) 
 
 -- top level functions
-template :: (String -> String) -> (String -> String)
-template r = ("templateBuilder(\n" ++) . r . ("\n),\n" ++)
+template :: (String -> String) -> (String -> String) -> (String -> String)
+template comment r = ("templateBuilder( //" ++) . comment . ("\n" ++) . r . ("\n),\n" ++)
 
 -- spine application
 app :: (String -> String) -> (String -> String)
@@ -58,6 +58,9 @@ int n = ("intBuilder(" ++) . (show n ++) . ("),\n" ++)
 
 prim :: String -> (String -> String)
 prim op = ("prmBuilder(\"" ++) . (op ++) . ("\"),\n" ++)
+
+y :: (String -> String)
+y = ("yBuilder(),\n" ++)
 
 getPatNum :: Pat -> Int
 getPatNum X = 0
@@ -93,9 +96,6 @@ listPrint xs = "List(" ++ inner ++ ")"
   where
     inner = concat $ zipWith (\x y -> show x ++ y) xs (replicate (length xs - 1) ", " ++ [""])
 
-example :: String -> String
-example = prog "example" $ template $ app $ comb 2 X [2,0,1] . int 13
-
 genRom :: (Ident, [LDef]) -> String
 genRom (mainName, ds) =
   let
@@ -108,7 +108,7 @@ genRom (mainName, ds) =
         Nothing -> do
           -- Put placeholder for n in seen.
           let e = findIdentIn n dMap
-          put (i + 1, M.insert n (ref i) seen, def r e)
+          put (i + 1, M.insert n (ref i) seen, def r e (show i ++ showIdent n))
           -- Walk n's children
           
           mapM_ dfs $ freeVars e
@@ -126,12 +126,12 @@ genRom (mainName, ds) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-    def :: (String -> String) -> Exp -> (String -> String)
-    def r e = r . buildTemplate (substv e) 
+    def :: (String -> String) -> Exp -> String -> (String -> String)
+    def r e funId = r . buildTemplate (substv e) funId
   in header ++ object "ProgramBin" (prog "prog" res) ""
 
-buildTemplate :: Exp -> (String -> String)
-buildTemplate ae =
+buildTemplate :: Exp -> String -> (String -> String)
+buildTemplate ae funId =
   let
     -- state: 1. ptr counter; 2. current spine; 3. apps
     build :: Exp -> State (Int, String -> String, [String -> String]) ()
@@ -150,7 +150,7 @@ buildTemplate ae =
         _ -> put(i, atom e . s, as)
 
     (_, (_, spn, aps)) = runState (build ae) (0, freeText "", [])
-  in template $ app spn . (show (length aps) ++) . (",\n" ++) . foldr ((.) . app) (freeText "") aps
+  in template (funId ++) (app spn . (show (length aps) ++) . (",\n" ++) . foldr ((.) . app) (freeText "") aps)
 
 atom :: Exp -> (String -> String)
 atom ae =
@@ -158,6 +158,7 @@ atom ae =
     Var i -> if "FUN" `isPrefixOf` (showIdent i) then fun $ read (drop 3 (showIdent i))
                else error "Strange Var exists."
     Lit (LInt i) -> int i
+    Lit (LPrim "Y") -> y
     Lit (LPrim op) -> prim op
     Lit _ -> error "Strange Lit exists."
     Sc a p is -> comb a p is
