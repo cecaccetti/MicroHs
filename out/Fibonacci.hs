@@ -11,5 +11,6 @@ fib n = fib (n - 1) + fib (n - 2)
 fib5 :: Int
 fib5 = fib (2 + 1 + (1 + 1))
 
+-- 0 1 1 2 3 5 8 13 21
 main :: Int
-main = fib5
+main = fib 8

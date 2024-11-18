@@ -17,5 +17,11 @@ neg :: TF -> TF
 neg T = F
 neg F = T
 
-main :: TF
-main = and T F
+data Pat = X | At Pat Pat
+
+holes :: Pat -> Int
+holes X = 1
+holes (At p1 p2) = holes p1 + holes p2
+
+main :: Int
+main = holes (At (At (At X X) X) (At X X))

@@ -145,6 +145,7 @@ removeSKI ae
   | isPrim "C'" ae = scC'
   | isPrim "C'B" ae = scC'B
   | isPrim "U" ae = scU
+  -- | isPrim "Y" ae = Lit (LPrim "QWQ")
   -- some more...
   | otherwise = ae
 
@@ -176,20 +177,29 @@ abstractSc :: Ident -> Exp -> Exp
 abstractSc x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
-    App f a -> scCombine (abstractSc x f) (abstractSc x a)
-    --Lam y e -> abstractCurry x $ etaReduce $ abstractSc y e
-    -- Lam y e -> abstractCurry x $ abstractSc y e
-    Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
-    Lit _ -> App scK ae -- Y combinator can make things ugly
+    -- App f a -> scCombine (abstractSc x f) (abstractSc x a)
+    App f a ->
+      case a of
+        Lam y e -> scCombine (abstractSc x f) (abstractSc x $ etaReduce $ abstractSc y e)
+        _ -> scCombine (abstractSc x f) (abstractSc x a)
+    -- Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
+    -- Lam y e -> abstractCurry x $ etaReduce $ abstractSc y e
+    Lam y e -> let
+      subLam = etaReduce $ abstractSc y e
+      noNested le = all (\a -> case a of
+                                 App _ _ -> False
+                                 _ -> True) (snd $ spine le)
+      next = if noNested subLam then abstractCurry x else abstractSc x
+      in next subLam
+    Lit _ -> App scK ae 
     Sc _ _ _ -> App scK ae
       -- if ar < 6 -- FIXME: parameterise this
       -- then App scK ae--Sc (ar + 1) pt (map (+ 1) is)
       -- else App scK ae -- fix this for curry
 
-abstractCurry :: Ident -> Exp -> Exp -- FIXME: not working for more than two arguments
+abstractCurry :: Ident -> Exp -> Exp
 abstractCurry x ae =
   case ae of
-    Var y -> ae--if x == y then scI else App scK (Var y)
     App f a ->
       let
         (c, args) = spine ae
@@ -199,31 +209,27 @@ abstractCurry x ae =
           | x == n = findIndices' n xs (i+1) (i:acc)
           | otherwise = findIndices' n xs (i+1) acc
         occurX = findIndices (Var x) args
-        shouldShift n list = length $ filter (< n) list
       in
         case c of
           Sc ar p is ->
-            if True
-            then case occurX of
+            case occurX of
               [] ->
                 if ar < 6 -- FIXME: prarameterise this
-                then foldl App (Sc (ar + 1) p (map (\i -> if i >= length args then i + 1 else i) is)) (map (abstractCurry x) args)
+                then foldl App (Sc (ar + 1) p (map (\i -> if i >= length args then i + 1 else i) is)) args
                 else abstractSc x ae
               xs ->
                 let
+                  shouldShift n list = length $ filter (< n) list
                   adjust :: [Int] -> [Int]
                   adjust idxs =
                     let lift = map (\i -> if elem i xs then length args - length xs else i) idxs
-                        shift = map (\i -> if (not (elem i xs)) && i < length args then i - shouldShift i xs else i) idxs
+                        shift = map (\i -> if not (elem i xs) && i < length args then i - shouldShift i xs else i) idxs
                     in map (\(origin, shifted, lifted) -> if shifted /= origin then shifted
                                                           else if lifted /= origin then lifted
                                                           else origin) (zip3 idxs shift lift)
-                in foldl App (Sc (ar - length xs + 1) p (adjust is)) (map (abstractCurry x) (filter (\e -> e /= Var x) args)) --(map (abstractCurry x ) args)
-            else abstractSc x ae
+                in foldl App (Sc (ar - length xs + 1) p (adjust is)) (filter (\e -> e /= Var x) args)
           _ -> abstractSc x ae
-    Lam _ _ -> undefined
-    Lit _ -> ae--App scK ae
-    Sc _ _ _ -> ae--App scK ae
+    _ -> ae
 
 example :: Exp
 example = Lam (mkIdent "x") (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (App (App (Var (mkIdent "x")) (Lit (LPrim "*"))) (Var (mkIdent "x"))) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z"))))))
@@ -258,7 +264,17 @@ scCombine a1 a2 =
         then let
           c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ (ar1 - 1)) is2)
           redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
-          in foldl App c args   
+          in foldl App c args
+        else if getHoles p1 <= 4 && ar1 <= 5 -- 6 - 2 = 4; 6 - 1 = 5
+        then let
+          c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [ar1 - 1, ar1])
+          redirect i = if i == ar1 - 1 then ar1 else i
+          in foldl App c (args1 ++ [etaReduce a2])
+        else if getHoles p2 <= 4 && ar2 <= 5
+        then let
+          c = Sc (ar2 + 1) (At (At X X) p2) ([0, ar2] ++ map redirect is2)
+          redirect i = i + 1
+          in foldl App c (etaReduce a1 : args2)
         else let
           a1NotUsed = notElem (ar1 - 1) is1
           a2NotUsed = notElem (ar2 - 1) is2
@@ -273,7 +289,6 @@ scCombine a1 a2 =
              else if a2NotUsed
              then app2 scC a1Eta a2Improved
              else app2 scS a1Eta a2Eta
-          --app2 scS a1 a2 -- do it smarter, with S/B/C
       _ -> app2 scS a1 a2
 
 etaReduce :: Exp -> Exp

@@ -20,4 +20,4 @@ addOne :: Int -> Int
 addOne = add 1
 
 main :: Int
-main = addOne 41
+main = addOne 49 + addOne 19 + addOne 29
