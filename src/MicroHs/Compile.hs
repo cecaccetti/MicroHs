@@ -244,7 +244,28 @@ compileModule flags impt mn pathfn file = do
   let
     -- scGraphs = setBindings dmdl [ (i, compileOpt e) | (i, e) <- opMoved ]
     scGraphs = [ (i, compileOpt e) | (i, e) <- opMoved ]
-
+    inlinedGraphs =
+      let
+        isSingle (App _ _) = False
+        isSingle _ = True
+        sub :: (Ident, Exp) -> Exp -> Exp
+        sub (i, single) (Var i') = Lit (LPrim (show i))--if i == i' then single else Var i'
+        sub (i, single) (App f a) = App (sub (i, single) f) (sub (i, single) a)
+        sub (i, single) ae = ae
+        subSingle :: (Ident, Exp) -> [(Ident, Exp)] -> [(Ident, Exp)]
+        subSingle (i, single) = map (\(i', e) -> (i', sub (i, single) e))
+        inlineSingle :: [(Ident, Exp)] -> S.State [(Ident, Exp)] ()
+        inlineSingle [] = return ()
+        inlineSingle ((i, e) : ies) = 
+          if isSingle e then do
+            s <- S.get
+            S.put $ subSingle (i, e) s
+            inlineSingle ies
+          else
+            inlineSingle ies
+          
+        (_, res) = S.runState (inlineSingle scGraphs) scGraphs
+      in res
   let
     cmdl = setBindings dmdl scGraphs
   () <- return $ rnfErr $ tBindingsOf cmdl  -- This makes execution slower, but speeds up GC

@@ -97,8 +97,9 @@ listPrint xs = "List(" ++ inner ++ ")"
     inner = concat $ zipWith (\x y -> show x ++ y) xs (replicate (length xs - 1) ", " ++ [""])
 
 genRom :: (Ident, [LDef]) -> String
-genRom (mainName, ds) =
+genRom (mainName, ldefs) =
   let
+    ds = inlineSingle ldefs
     dMap = M.fromList ds
     -- state: 1. fun counter; 2. app counter; 3. function map; 4. resulting string
     dfs :: Ident -> State (Int, Int, M.Map Exp, String -> String) ()
@@ -163,3 +164,27 @@ atom ae =
     Lit _ -> error "Strange Lit exists."
     Sc a p is -> comb a p is
     _ -> error "Not an Atom."
+
+inlineSingle :: [LDef] -> [LDef]
+inlineSingle defs =
+  let
+    isSingle (App _ _) = False
+    isSingle _ = True
+    sub :: (Ident, Exp) -> Exp -> Exp
+    sub (i, single) (Var i') = if i == i' then single else Var i'
+    sub (i, single) (App f a) = App (sub (i, single) f) (sub (i, single) a)
+    sub (i, single) ae = ae
+    subSingle :: (Ident, Exp) -> [(Ident, Exp)] -> [(Ident, Exp)]
+    subSingle (i, single) = map (\(i', e) -> (i', sub (i, single) e))
+    inlineSingle' :: [(Ident, Exp)] -> State [(Ident, Exp)] ()
+    inlineSingle' [] = return ()
+    inlineSingle' ((i, e) : ies) = 
+      if isSingle e then do
+        s <- get
+        put $ subSingle (i, e) s
+        inlineSingle' ies
+      else
+        inlineSingle' ies
+        
+    (_, res) = runState (inlineSingle' defs) defs
+  in res
