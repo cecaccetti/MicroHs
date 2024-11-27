@@ -3,21 +3,31 @@ module Playground where
 import Prelude()
 import NanoPrelude
 
---isEven :: Int -> Bool
---isEven n =
-  --let
-    --isEven' 0 = True
- --   isEven' i = isOdd' (i - 1)
-   -- isOdd' 0 = False
-    --isOdd' i = isEven' (i - 1)
-  --in
-    --isEven' n
+isEven :: Int -> Bool
+isEven n =
+  let
+    isEven' 0 = True
+    isEven' i = isOdd' (i - 1)
+    isOdd' 0 = False
+    isOdd' i = isEven' (i - 1)
+  in
+    isEven' n
     
-add :: Int -> Int -> Int
-add a b = a + b
+    
+isEven' 0 = True
+isEven' i = isOdd' (i - 1)
 
-addOne :: Int -> Int
-addOne = add 1
+isOdd' 0 = False
+isOdd' i = isEven' (i - 1)
 
-main :: Int
-main = addOne 49 + addOne 19 + addOne 29
+main :: Bool
+main = isEven 5
+ 	--let a = 3 + 3
+ 	--let a = sum (map (+ 1) [1 ..6 ])
+  	     --in a + a
+
+--let a = sum (map (+ 1) [1 ..6 ])
+--	in a + a
+	
+	
+	

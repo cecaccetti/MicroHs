@@ -13,4 +13,4 @@ fib5 = fib (2 + 1 + (1 + 1))
 
 -- 0 1 1 2 3 5 8 13 21
 main :: Int
-main = fib 8
+main = fib 17

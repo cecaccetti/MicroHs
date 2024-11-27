@@ -1,0 +1,387 @@
+module Mate where
+
+-- import Data.Maybe
+
+import Prelude()
+import NanoPrelude
+
+data Kind
+  = Bishop
+  | King
+  | Knight
+  | Pawn
+  | Queen
+  | Rook
+
+data Colour
+  = Black
+  | White
+
+type Square = (Int, Int)
+
+type Piece = (Colour, Kind)
+
+data Board
+  = Board [(Kind, Square)] [(Kind, Square)]
+
+data Move
+  = Move Square (Maybe Piece) (Maybe Piece)
+
+data MoveInFull = MoveInFull Piece Square Move
+
+data Solution
+  = Solution MoveInFull [(MoveInFull, Solution)]
+
+plus a b = a + b
+
+minus a b = a - b
+
+cross (f, g) (x, y) = (f x, g y)
+
+kindToChar k =
+  case k of
+    King   -> 0::Int
+    Queen  -> 1
+    Rook   -> 2
+    Bishop -> 3
+    Knight -> 4
+    Pawn   -> 5
+
+isKing k = kindToChar k == (0::Int)
+
+pieceAt (Board wkss bkss) sq =
+  pieceAtWith sq White (pieceAtWith sq Black Nothing bkss) wkss
+
+pieceAtWith sq c n [] = n
+pieceAtWith sq c n ((k, s) : xs) =
+  if sameSquare s sq
+    then Just (c, k)
+    else pieceAtWith sq c n xs
+
+emptyAtAll (Board wkss bkss) e =
+  emptyAtAllAnd e (emptyAtAllAnd e True bkss) wkss
+
+emptyAtAllAnd e b []            = b
+emptyAtAllAnd e b ((k, s) : xs) =
+  if e s
+    then False
+    else emptyAtAllAnd e b xs
+
+rmPieceAt White sq (Board wkss bkss) = Board (rPa sq wkss) bkss
+rmPieceAt Black sq (Board wkss bkss) = Board wkss (rPa sq bkss)
+
+rPa sq (ks : kss) =
+  case ks of
+    (k, s) ->
+      if sameSquare s sq
+        then kss
+        else ks : rPa sq kss
+    _ -> kss -- ad-hoc fix
+rPa sq [] = [] -- ad-hoc fix
+
+putPieceAt sq (c, k) (Board wkss bkss) =
+  case c of
+    White -> Board ((k, sq) : wkss) bkss
+    Black -> Board wkss ((k, sq) : bkss)
+
+kingSquare c b = kSq (forcesColoured c b)
+
+kSq ((k, s) : kss) =
+  if isKing k then s else kSq kss
+kSq [] = (0::Int, 0::Int) -- ad-hoc fix
+
+opponent Black = White
+opponent White = Black
+
+colourOf (c, k) = c
+kindOf   (c, k) = k
+
+sameColour White White = True
+sameColour White Black = False
+sameColour Black White = False
+sameColour Black Black = True
+
+rank (f, r) = r
+file (f, r) = f
+
+sameSquare (f1, r1) (f2, r2) = (f1 == f2) && (r1 == r2)
+
+onboard (p, q) =
+  ((1 <= p) && (p <= 8)) &&
+  ((1 <= q) && (q <= 8))
+
+forcesColoured White (Board wkss bkss) = wkss
+forcesColoured Black (Board wkss bkss) = bkss
+
+moveDetailsFor c bd =
+  concatMap (movesForPiece c bd) (forcesColoured c bd)
+
+movesForPiece c bd p =
+  concatMap (tryMove c bd p) (rawmoves c p bd)
+
+tryMove c bd (k, sqFrom) (Move sqTo mcp mpp) =
+  let p   = (c, k)
+      bd1 = rmPieceAt c sqFrom bd
+      pp  = maybe p id mpp
+      bd2 = maybe (putPieceAt sqTo pp bd1)
+                  (const (putPieceAt sqTo pp
+                           (rmPieceAt (opponent c) sqTo bd1)))
+                  mcp
+  in if kingincheck c bd2
+       then []
+       else [(MoveInFull p sqFrom (Move sqTo mcp mpp), bd2)]
+
+
+rawmoves c (k, sq) bd =
+  let m = case k of
+            King   -> kingmoves
+            Queen  -> queenmoves
+            Rook   -> rookmoves
+            Bishop -> bishopmoves
+            Knight -> knightmoves
+            Pawn   -> pawnmoves
+  in m c sq bd
+
+bishopmoves c sq bd =
+  moveLine bd c sq (cross (pred, succ)) ++
+  moveLine bd c sq (cross (succ, succ)) ++
+  moveLine bd c sq (cross (pred, pred)) ++
+  moveLine bd c sq (cross (succ, pred))
+
+rookmoves c sq bd =
+  moveLine bd c sq (cross (pred, id)) ++
+  moveLine bd c sq (cross (succ, id)) ++
+  moveLine bd c sq (cross (id, pred)) ++
+  moveLine bd c sq (cross (id, succ))
+
+moveLine bd c sq i =
+  let incsq = i sq
+  in if onboard incsq
+       then case pieceAt bd incsq of
+              Nothing -> Move incsq Nothing Nothing : moveLine bd c incsq i
+              Just p  -> if sameColour (colourOf p) c
+                           then []
+                           else [Move incsq (Just p) Nothing]
+       else []
+
+
+kingmoves c (p, q) bd =
+  let pi = p + 1
+      pd = p - 1
+      qi = q + 1
+      qd = q - 1
+  in sift c bd [] [(pd,qi), (p ,qi), (pi,qi)
+                  ,(pd,q ),          (pi,q )
+                  ,(pd,qd), (p ,qd), (pi,qd)
+                  ]
+
+knightmoves c (p, q) bd =
+  let pi = p + 1
+      pd = p - 1
+      qi = q + 1
+      qd = q - 1
+      pi2 = p + 2
+      pd2 = p - 2
+      qi2 = q + 2
+      qd2 = q - 2
+  in sift c bd [] [     (pd ,qi2),      (pi ,qi2)
+                  ,(pd2,qi ),                (pi2,qi)
+                  ,(pd2,qd ),                (pi2,qd)
+                  ,     (pd ,qd2),      (pi ,qd2)
+                  ]
+
+sift c bd ms []           = ms
+sift c bd ms (sq : sqs) =
+  if onboard sq
+    then case pieceAt bd sq of
+           Nothing -> sift c bd (Move sq Nothing Nothing : ms) sqs
+           Just p  -> if sameColour (colourOf p) c
+                        then sift c bd ms sqs
+                        else sift c bd (Move sq (Just p) Nothing : ms) sqs
+    else sift c bd ms sqs
+
+pawnmoves c (p, q) bd =
+  let fwd = case c of
+              White -> 1::Int
+              Black -> 0 - 1
+      on1  = (p, q + fwd)
+      on2  = (p, q + fwd + fwd)
+      mov2 = if (secondRank c q) && isNothing (pieceAt bd on2)
+               then [Move on2 Nothing Nothing]
+               else []
+      movs = if isNothing (pieceAt bd on1)
+               then promote c on1 Nothing ++ mov2
+               else []
+      dii  = (p + 1, q + fwd)
+      did  = (p - 1, q + fwd)
+      caps = promoteCap c dii bd ++ promoteCap c did bd
+  in movs ++ caps
+
+promoteCap c sq bd =
+  let mcp = pieceAt bd sq
+  in case mcp of
+       Nothing  -> []
+       Just p   -> if sameColour (colourOf p) c
+                     then []
+                     else promote c sq mcp
+
+promote c sq mcp =
+  if lastRank c (rank sq)
+    then map (Move sq mcp)
+             [Just (c, Queen)
+             ,Just (c, Rook)
+             ,Just (c, Bishop)
+             ,Just (c, Knight)
+             ]
+    else [Move sq mcp Nothing]
+
+secondRank White r = r == 2
+secondRank Black r = r == 7
+
+lastRank White r = r == 8
+lastRank Black r = r == 1
+
+queenmoves c sq bd = bishopmoves c sq bd ++ rookmoves c sq bd
+
+kingincheck c bd =
+  any (kingInCheckFrom c bd) (forcesColoured (opponent c) bd)
+
+kingInCheckFrom c bd (f, (x, y)) =
+  case kingSquare c bd of
+    (xk, yk) ->
+      case f of
+        King   -> (abs (x - xk) <= 1) &&
+                  (abs (y - yk) <= 1)
+        Queen  -> (kingInCheckFrom c bd (Rook  , (x, y))) ||
+                  (kingInCheckFrom c bd (Bishop, (x, y)))
+        Rook   -> ((x == xk) &&
+                   (emptyAtAll bd (filePath xk y yk))) ||
+                  ((y == yk) &&
+                   (emptyAtAll bd (rankPath yk x xk)))
+        Bishop -> ((x - y == xk - yk) &&
+                   (emptyAtAll bd (diagPath minus (xk - yk) x xk))) ||
+                  ((x + y == xk + yk) &&
+                   (emptyAtAll bd (diagPath plus  (xk + yk) x xk)))
+        Knight -> ((abs (x - xk) == 2) && (abs (y - yk) == 1)) ||
+                  ((abs (x - xk) == 1) && (abs (y - yk) == 2))
+        Pawn   -> (abs (x - xk) == 1) &&
+                  (yk == onFor c y  )
+
+onFor Black = succ
+onFor White = pred
+
+filePath xk yFrom yTo (x, y) =
+  let ylo = min yFrom yTo + 1
+      yhi = max yFrom yTo - 1
+  in (x == xk) &&
+     (ylo <= y) &&
+     (y <= yhi)
+
+rankPath yk xFrom xTo (x, y) =
+  let xlo = min xFrom xTo + 1
+      xhi = max xFrom xTo - 1
+  in  (y == yk)  &&
+      (xlo <= x) &&
+      (x <= xhi)
+
+diagPath op d xFrom xTo (x, y) =
+  let xlo = min xFrom xTo + 1
+      xhi = max xFrom xTo - 1
+  in  (op x y == d) &&
+      (xlo <= x)    &&
+      (x <= xhi)
+
+solve bd c n = showResult (solution bd c (n + n - 1))
+
+solution bd c n =
+  let mds = moveDetailsFor c bd
+  in  foldr (solnOr c n) Nothing mds
+
+solnOr c n (mif, b) other =
+  case replies b (opponent c) (n - 1) of
+    Nothing -> other
+    Just rs -> if null rs
+                 then if kingincheck (opponent c) b
+                        then Just (Solution mif [])
+                        else other
+                 else Just (Solution mif rs)
+
+replies bd c n =
+  let mds = moveDetailsFor c bd
+  in if n == 0
+       then if null mds
+              then Just []
+              else Nothing
+       else foldr (solnAnd c n) (Just []) mds
+
+solnAnd c n (mif, b) rest =
+  case solution b (opponent c) (n - 1) of
+    Nothing -> Nothing
+    Just s  -> case rest of
+                 Nothing -> Nothing
+                 Just ms -> Just ((mif, s) : ms)
+
+showResult Nothing  = 0::Int
+showResult (Just s) = size s
+
+size (Solution mif rs) = sum (map size (snd (unzip rs))) + 1
+
+solveProblem (bd, (c, n)) = solve bd c n
+
+-- Small main
+player1 :: [(Kind, (Int, Int))]
+player1 =
+  [(King  , (8::Int, 7::Int))
+  ]
+
+player2 :: [(Kind, (Int, Int))]
+player2 =
+  [(Pawn  , (2::Int, 2::Int))
+  ,(Rook  , (2::Int, 3::Int))
+  ,(King  , (6::Int, 5::Int))
+  ]
+
+main =
+  let
+   problem =
+    (Board player1 player2
+    ,(White, 2::Int))
+  in solveProblem problem
+
+{-
+-- Large main
+player1 =
+  [(Knight, (7, 8))
+  ,(Rook  , (5, 7))
+  ,(King  , (8, 7))
+  ,(Bishop, (4, 5))
+  ,(Pawn  , (8, 4))
+  ,(Pawn  , (7, 3))
+  ,(Pawn  , (5, 2))
+  ,(Pawn  , (6, 2))
+  ,(Queen , (5, 1))
+  ]
+
+player2 =
+  [(Knight, (2, 8))
+  ,(Pawn  , (7, 7))
+  ,(Pawn  , (4, 6))
+  ,(Pawn  , (3, 5))
+  ,(King  , (6, 5))
+  ,(Pawn  , (8, 5))
+  ,(Pawn  , (4, 4))
+  ,(Pawn  , (2, 3))
+  ,(Pawn  , (5, 3))
+  ,(Pawn  , (7, 2))
+  ,(Queen , (1, 1))
+  ,(Knight, (2, 1))
+  ,(Bishop, (8, 1))
+  ]
+
+main =
+  let
+   problem =
+    (Board player1 player2
+    ,(White, 3))
+  in solveProblem problem
+-}

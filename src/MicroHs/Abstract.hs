@@ -109,26 +109,54 @@ scA = Sc 2 X [1]
 scO :: Exp
 scO = Sc 4 (At (At X X) X) [3, 0, 1]
 
--- Pxyz zxy
+-- P x y z = z x y
 scP :: Exp
 scP = Sc 3 (At (At X X) X) [2, 0, 1]
 
--- C’ x y z w  x (y w) z
+-- C’ x y z w = x (y w) z
 scC' :: Exp
 scC' = Sc 4 (At (At X (At X X)) X) [0, 1, 3, 2]
 
--- C’B x y z w   x z (y w)
+-- C’B x y z w = x z (y w)
 scC'B :: Exp
 scC'B = Sc 4 (At (At X X) (At X X)) [0, 2, 1, 3]
 
--- Uxy yx
+-- U x y = y x
 scU :: Exp
 scU = Sc 2 (At X X) [1, 0]
+
+-- Z x y z = x y
+scZ :: Exp
+scZ = Sc 3 (At X X) [0, 1]
+
+-- S’ x y z w = x (y w) (z w)
+scS' :: Exp
+scS' = Sc 4 (At (At X (At X X)) (At X X)) [0, 1, 3, 2, 3]
+
+-- R x y z = y z x
+scR :: Exp
+scR = Sc 3 (At (At X X) X) [1, 2, 0]
+
+-- K2 x y z = x
+scK2 :: Exp
+scK2 = Sc 3 X [0]
+
+-- B’ x y z w = x y (z w)
+scB' :: Exp
+scB' = Sc 4 (At (At X X) (At X X)) [0, 1, 2, 3]
+
+-- K3 x y z w = x
+scK3 :: Exp
+scK3 = Sc 4 X [0]
+
+-- K4 x y z w v = x
+scK4 :: Exp
+scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt =  etaReduce . compileExpSc . removeSKI . opInfix
--- compileOpt = removeSKI . improveT . compileExp . opInfix
+-- compileOpt =  etaReduce . compileExpSc . removeSKI . opInfix
+compileOpt = removeSKI . improveT . compileExp  . opInfix
 
 removeSKI :: Exp -> Exp
 removeSKI (App f a) = App (removeSKI f) (removeSKI a)
@@ -145,20 +173,32 @@ removeSKI ae
   | isPrim "C'" ae = scC'
   | isPrim "C'B" ae = scC'B
   | isPrim "U" ae = scU
-  -- | isPrim "Y" ae = Lit (LPrim "QWQ")
+  | isPrim "Z" ae = scZ
+  | isPrim "S'" ae = scS'
+  | isPrim "R" ae = scR
+  | isPrim "K2" ae = scK2
+  | isPrim "B'" ae = scB'
+  | isPrim "K3" ae = scK3
+  | isPrim "K4" ae = scK4
   -- some more...
   | otherwise = ae
 
 isOp :: Lit -> Bool
 isOp (LPrim lit)
-  | lit == "==" = True
   | lit == "+" = True
   | lit == "-" = True
   | lit == "*" = True
+  | lit == "==" = True
+  | lit == "/=" = True
+  | lit == "<" = True
+  | lit == "<=" = True
+  | lit == ">" = True
+  | lit == ">=" = True
   | otherwise = False
 isOp _ = False
 
 opInfix :: Exp -> Exp
+opInfix (App (Lit (LPrim "neg")) (Lit (LInt i))) = Lit (LInt (-i))
 opInfix (App (App (Lit l) i1) i2)
   | isOp l = App (App (opInfix i1) (Lit l)) (opInfix i2)
   | otherwise = App (opInfix (App (Lit l) i1)) (opInfix i2)
@@ -177,20 +217,19 @@ abstractSc :: Ident -> Exp -> Exp
 abstractSc x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
-    -- App f a -> scCombine (abstractSc x f) (abstractSc x a)
-    App f a ->
-      case a of
-        Lam y e -> scCombine (abstractSc x f) (abstractSc x $ etaReduce $ abstractSc y e)
-        _ -> scCombine (abstractSc x f) (abstractSc x a)
-    -- Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
-    -- Lam y e -> abstractCurry x $ etaReduce $ abstractSc y e
-    Lam y e -> let
-      subLam = etaReduce $ abstractSc y e
-      noNested le = all (\a -> case a of
-                                 App _ _ -> False
-                                 _ -> True) (snd $ spine le)
-      next = if noNested subLam then abstractCurry x else abstractSc x
-      in next subLam
+    App f a -> scCombine (abstractSc x f) (abstractSc x a)
+    -- App f a ->
+    --   case a of
+    --     Lam y e -> scCombine (abstractSc x f) (abstractSc x $ etaReduce $ abstractSc y e)
+    --     _ -> scCombine (abstractSc x f) (abstractSc x a)
+    Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
+    -- Lam y e -> let
+    --   subLam = etaReduce $ abstractSc y e
+    --   noNested le = all (\a -> case a of
+    --                              App _ _ -> False
+    --                              _ -> True) (snd $ spine le)
+    --   next = if noNested subLam then abstractCurry x else abstractSc x
+    --   in next subLam
     Lit _ -> App scK ae 
     Sc _ _ _ -> App scK ae
       -- if ar < 6 -- FIXME: parameterise this
@@ -292,28 +331,29 @@ scCombine a1 a2 =
       _ -> app2 scS a1 a2
 
 etaReduce :: Exp -> Exp
-etaReduce ae = 
-  case ae of
-    App f a ->
-      let
-        (c, args) = spine ae
-        isOnlyLast :: Int -> [Int] -> Bool
-        isOnlyLast x xs = last xs == x && count x xs == 1
-          where count n = length . filter (== n)
-        smallTail (At _ X) = True
-        smallTail _ = False
-        stripTail (At p X) = p
-        stripTail p = p
-      in
-        case c of
-          Sc ar p is ->
-            if ar == length args
-            then fromPat p is args
-            else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p
-            then fromPat (stripTail p) (init is) args
-            else fromSpine (c, map etaReduce args)
-          _ -> fromSpine (c, map etaReduce args)
-    _ -> ae
+etaReduce = id -- maybe we want to make sure, eta only applies singletons
+-- etaReduce ae = 
+--   case ae of
+--     App f a ->
+--       let
+--         (c, args) = spine ae
+--         isOnlyLast :: Int -> [Int] -> Bool
+--         isOnlyLast x xs = last xs == x && count x xs == 1
+--           where count n = length . filter (== n)
+--         smallTail (At _ X) = True
+--         smallTail _ = False
+--         stripTail (At p X) = p
+--         stripTail p = p
+--       in
+--         case c of
+--           Sc ar p is ->
+--             if ar == length args
+--             then fromPat p is args -- this is harmful for let expressions
+--             else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p
+--             then fromPat (stripTail p) (init is) args
+--             else fromSpine (c, map etaReduce args)
+--           _ -> fromSpine (c, map etaReduce args)
+--     _ -> ae
 
 compileExp :: Exp -> Exp
 compileExp ae =

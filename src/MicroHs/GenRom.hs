@@ -62,6 +62,9 @@ prim op = ("prmBuilder(\"" ++) . (op ++) . ("\"),\n" ++)
 y :: (String -> String)
 y = ("yBuilder(),\n" ++)
 
+err :: Int -> (String -> String)
+err code = ("errorBuilder(" ++) . (show code ++) . ("),\n" ++)
+
 getPatNum :: Pat -> Int
 getPatNum X = 0
 getPatNum p =
@@ -160,7 +163,9 @@ atom ae =
                else error "Strange Var exists."
     Lit (LInt i) -> int i
     Lit (LPrim "Y") -> y
-    Lit (LPrim op) -> prim op
+    Lit (LPrim ('e':'r':'r':'o':'r':rest)) -> err $ read rest
+    Lit (LPrim op) -> if "error" `isPrefixOf` op then err $ read (drop 5 op)
+                        else prim op
     Lit _ -> error "Strange Lit exists."
     Sc a p is -> comb a p is
     _ -> error "Not an Atom."
@@ -173,7 +178,7 @@ inlineSingle defs =
     sub :: (Ident, Exp) -> Exp -> Exp
     sub (i, single) (Var i') = if i == i' then single else Var i'
     sub (i, single) (App f a) = App (sub (i, single) f) (sub (i, single) a)
-    sub (i, single) ae = ae
+    sub _ ae = ae
     subSingle :: (Ident, Exp) -> [(Ident, Exp)] -> [(Ident, Exp)]
     subSingle (i, single) = map (\(i', e) -> (i', sub (i, single) e))
     inlineSingle' :: [(Ident, Exp)] -> State [(Ident, Exp)] ()

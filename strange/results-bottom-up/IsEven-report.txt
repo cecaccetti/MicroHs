@@ -1,0 +1,20 @@
+=========== SIMULATION DONE ===========
+answer: 42
+cycle consumed: 13383
+program size: 15
+heap consumed: 3108
+heap consumed in runtime: 3093
+peak reduction stack depth: 15
+peak update stack depth: 515
+=======================================
++ PTR reductions: 4891
++ COMB reductions: 5408
++ INT applied reductions: 1025
++ INT swap reductions: 512
++ PRM reductions: 0
++ Y reductions: 1
++ heap updates in total: 2065
+- heap updates hidden: 519
+- pipeline hidden: 0
+=======================================
+
