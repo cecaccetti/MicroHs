@@ -155,8 +155,8 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
--- compileOpt =  etaReduce . compileExpSc . removeSKI . opInfix
-compileOpt = removeSKI . improveT . compileExp  . opInfix
+compileOpt =  etaReduce . compileExpSc . removeSKI . opInfix
+-- compileOpt = removeSKI . improveT . compileExp  . opInfix
 
 removeSKI :: Exp -> Exp
 removeSKI (App f a) = App (removeSKI f) (removeSKI a)
@@ -180,7 +180,6 @@ removeSKI ae
   | isPrim "B'" ae = scB'
   | isPrim "K3" ae = scK3
   | isPrim "K4" ae = scK4
-  -- some more...
   | otherwise = ae
 
 isOp :: Lit -> Bool
@@ -217,7 +216,15 @@ abstractSc :: Ident -> Exp -> Exp
 abstractSc x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
-    App f a -> scCombine (abstractSc x f) (abstractSc x a)
+    App f a ->
+      let
+        fOld = case f of
+                 Lam y e -> abstractSc y e
+                 _ -> f
+        aOld = case a of
+                 Lam y e -> abstractSc y e
+                 _ -> a
+      in combineSc (abstractSc x f) (abstractSc x a) fOld aOld
     -- App f a ->
     --   case a of
     --     Lam y e -> scCombine (abstractSc x f) (abstractSc x $ etaReduce $ abstractSc y e)
@@ -231,10 +238,10 @@ abstractSc x ae =
     --   next = if noNested subLam then abstractCurry x else abstractSc x
     --   in next subLam
     Lit _ -> App scK ae 
-    Sc _ _ _ -> App scK ae
-      -- if ar < 6 -- FIXME: parameterise this
-      -- then App scK ae--Sc (ar + 1) pt (map (+ 1) is)
-      -- else App scK ae -- fix this for curry
+    Sc ar pt is -> -- App scK ae
+      if ar < 6 -- FIXME: parameterise this (maybe allow 7??)
+      then Sc (ar + 1) pt (map (+ 1) is)
+      else App scK ae
 
 abstractCurry :: Ident -> Exp -> Exp
 abstractCurry x ae =
@@ -270,7 +277,6 @@ abstractCurry x ae =
           _ -> abstractSc x ae
     _ -> ae
 
-example :: Exp
 example = Lam (mkIdent "x") (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (App (App (Var (mkIdent "x")) (Lit (LPrim "*"))) (Var (mkIdent "x"))) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z"))))))
 
 example1 = (Lam (mkIdent "z") (App (App (App (App (Var (mkIdent "x")) (Lit (LPrim "*"))) (Var (mkIdent "x"))) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z")))))
@@ -279,15 +285,187 @@ example2 = (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (App (App (Var (mkIde
 
 exampleSmall = Lam (mkIdent "x") (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (Var (mkIdent "x")) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z"))))))
 
-    
-scCombine' a1 a2 =
+exampleSmall' = Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (Var (mkIdent "x")) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z")))))
+
+exampleSmall'' = Lam (mkIdent "z") (App (App (Var (mkIdent "x")) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z"))))
+
+exampleBig = Lam (mkIdent "a") (App (Var (mkIdent "a")) (App (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (App (App (Var (mkIdent "x")) (Lit (LPrim "*"))) (Var (mkIdent "a"))) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z")))))) (Var (mkIdent "a"))))
+
+exampleBig' = Lam (mkIdent "a") (Lam (mkIdent "x") (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (Var (mkIdent "x")) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "z")))))))
+
+exampleBig'' = Lam (mkIdent "a") (App (Var (mkIdent "Y")) (Lam (mkIdent "x") (Lam (mkIdent "y") (Lam (mkIdent "z") (App (App (Var (mkIdent "x")) (Lit (LPrim "+"))) (App (App (Var (mkIdent "y")) (Lit (LPrim "*"))) (Var (mkIdent "a"))))))))
+
+eqList1 = Lam (mkIdent "x2") (Lam (mkIdent "x3") (Var (mkIdent "False")))
+
+eqList2 = App (Var (mkIdent "q2")) (App (App (Var (mkIdent "q3")) (Var (mkIdent "True"))) eqList1)
+
+eqList3 = App (App (Var (mkIdent "eqList@")) (Var (mkIdent "x5"))) (Var (mkIdent "x7"))
+
+eqList4 = App (Var (mkIdent "&&")) (App (App (Var (mkIdent "q1")) (Var (mkIdent "x4"))) (Var (mkIdent "x6")))
+
+eqList5 = Lam (mkIdent "x6") (Lam (mkIdent "x7") (App eqList4 eqList3))
+
+eqList6 = App (Var (mkIdent "q3")) (Var (mkIdent "False"))
+
+eqList7 = Lam (mkIdent "x4") (Lam (mkIdent "x5") (App eqList6 eqList5))
+
+eqList7' = Lam (mkIdent "x5") eqList5
+
+eqList7'' = Lam (mkIdent "x4") (Lam (mkIdent "x5") eqList5)
+
+eqList8 = Lam (mkIdent "eqList@") (Lam (mkIdent "q2") (Lam (mkIdent "q3") (App eqList2 eqList7)))
+
+eqList = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) eqList8)
+
+-- ((Data.List_Type.: $x2) (NanoPrelude.takeWhile@ $x3))
+takeWhile1 = App (App (Var (mkIdent "{:}")) (Var (mkIdent "x2"))) (App (Var (mkIdent "takeWhile@")) (Var (mkIdent "x3")))
+-- (($q1 $x2) Data.List_Type.[])
+takeWhile2 = App (App (Var (mkIdent "q1")) (Var (mkIdent "x2"))) (Var (mkIdent "[]"))
+-- (\$x2. (\$x3. ((($q1 $x2) Data.List_Type.[]) ((Data.List_Type.: $x2) (NanoPrelude.takeWhile@ $x3)))))
+takeWhile3 = Lam (mkIdent "x2") (Lam (mkIdent "x3") (App takeWhile2 takeWhile1))
+--
+takeWhile4 = Lam (mkIdent "takeWhile@") (Lam (mkIdent "q2") (App (App (Var (mkIdent "q2")) (Var (mkIdent "[]"))) takeWhile3))
+takeWhile4' = Lam (mkIdent "q2") (App (App (Var (mkIdent "q2")) (Var (mkIdent "[]"))) takeWhile3)
+
+takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
+
+combineSc :: Exp -> Exp -> Exp -> Exp -> Exp
+combineSc a1 a2 a1Old' a2Old' =
   let
     (c1, args1) = spine a1
     (c2, args2) = spine a2
   in
-    case (c1, c2) of -- (a1, a2) has no problem
-      (Sc ar1 p1 is1, Sc ar2 p2 is2) -> app2 scS a1 a2
+    case (c1, c2) of
+      (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
+        if a1IsUnary && a2IsUnary then -- standard combine
+          if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 6 then -- FIXME: parameterise this
+            let
+              c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ length args1) is2)
+              redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
+            in foldl App c (args1 ++ args2)
+          else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5
+            let
+              c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [length args1, length args1 + 1])
+              redirect i = if i == ar1 - 1 then ar1 else i
+            in foldl App c (args1 ++ [a2])
+          else if getHoles p2 <= 4 && ar2 <= 5 then -- append right
+            let
+              c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
+            in foldl App c (a1 : args2)
+          else
+            addSc a1Old c1 args1 a2Old c2 args2
+        else if a1IsUnary then -- a2 is not unary
+          if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
+            let c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [ar1 - 1])
+                redirect i = if i == ar1 - 1 then ar1 else i
+            in App (foldl App c args1) a2Old
+          else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5
+            let c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [ar1 - 1, ar1]) -- appendLeftSc
+                redirect i = if i == ar1 - 1 then ar1 else i
+            in foldl App c (args1 ++ [a2])
+          -- else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
+          --   let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
+          --   in foldl App c (a1Old : args2)
+          -- else if getHoles p2 <= 4 && ar2 <= 5 then -- append on right
+          --   let c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
+          --   in foldl App c (a1 : args2)
+          else
+            addSc a1Old c1 args1 a2Old c2 args2 -- consider how to compress later
+        else if a2IsUnary && getHoles p1 + length (filter (== length args1 + 1) is1) * (getHoles p2 - 1) <= 6 then -- a1 is not unary, will absorb a2
+          let
+            updatePat p is = updatePatWith p is p2
+            newAr = ar1 + ar2 - 2
+            newPat = updatePat p1 is1
+            redirect i 
+              | i == length args1 = 42
+              | i > length args1 + 1 = -i
+              | otherwise = i 
+            move i = if i < 0 then (-i) + length args2 - 1 else i
+            c = Sc newAr newPat
+                (map ((\n -> if n == 42 then length args1 + length args2 else n) . move)
+                  (replaceWith (map redirect is1) (length args1 + 1) (map (+ length args1) is2)))
+          in foldl App c (args1 ++ args2)
+        else -- both a1 and a2 are not unary; or only a2 is unary, but cannot be absorbed
+          if notElem (length args2) is2 then -- append on left (x is not used on right)
+            let
+              redirect i = if i == length args1 then -1 else i 
+              c = Sc ar1 p1
+                (map (\n -> if n == -1 then length args1 + 1 else n)
+                 (replaceWith (map redirect is1) (length args1 + 1) [length args1]))
+            in App (foldl App c args1) a2Old
+          else if getHoles p1 + length (filter (== length args1 + 1) is1) <= 6 then -- append on left
+            let
+              updatePat p is = updatePatWith p is (At X X)
+              newPat = updatePat p1 is1
+              redirect i = if i == length args1 then -1 else i 
+              c = Sc ar1 newPat
+                (map (\n -> if n == -1 then length args1 + 1 else n)
+                 (replaceWith (map redirect is1) (length args1 + 1) [length args1, length args1 + 1]))
+            in App (foldl App c args1) a2
+          -- else if getHoles p2 <= 4 && ar2 <= 5 then -- append on right
+          --     let c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
+          --     in foldl App c (a1 : args2)
+          else
+            addSc a1Old c1 args1 a2Old c2 args2 -- consider how to compress later
+        where
+          a1Old = discardSc c1 args1
+          a2Old = discardSc c2 args2
+          a1IsUnary = ar1 == length args1 + 1
+          a2IsUnary = ar2 == length args2 + 1
+          -- updatePat :: Pat -> [Idx] -> Pat -> Pat
+          updatePatWith X [i] p = if i == length args1 + 1 then p else X
+          updatePatWith (At pt1 pt2) is p =
+            let (i1, i2) = splitAt (getHoles pt1) is
+            in At (updatePatWith pt1 i1 p) (updatePatWith pt2 i2 p)
+          updatePatWith _ _ _ = error "strange pat"
+          replaceWith :: [Int] -> Int -> [Int] -> [Int]
+          replaceWith [] _ _ = []
+          replaceWith (n:ns) v rpl =
+            if n == v then
+              rpl ++ replaceWith ns v rpl
+            else
+              n : replaceWith ns v rpl
       _ -> app2 scS a1 a2
+
+addSc :: Exp -> Exp -> [Exp] -> Exp -> Exp -> [Exp] -> Exp
+addSc a1Old' c1 args1 a2Old' c2 args2 =
+  case (c1, c2) of
+    (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
+      let
+        a1Old = discardSc c1 args1
+        a2Old = discardSc c2 args2
+        a1NotUsed = notElem (length args1) is1
+        a2NotUsed = notElem (length args2) is2
+        a1Eta = etaReduce $ fromSpine (c1, args1) 
+        a2Eta = etaReduce $ fromSpine (c2, args2)
+      in if a1NotUsed && a2NotUsed
+         then App scK (App a1Old a2Old)
+         else if a1NotUsed
+         then app2 scB a1Old a2Eta
+         else if a2NotUsed
+         then app2 scC a1Eta a2Old
+         else app2 scS a1Eta a2Eta
+    _ -> undefined
+
+discardSc :: Exp -> [Exp] -> Exp
+discardSc c args = 
+  case c of
+    Sc ar p is -> -- should not contain any `length args` in `is`
+      let
+        redirect i 
+          | i < length args = i
+          | i > length args = i - 1
+          | otherwise = error "should not discard"
+        c' = Sc (ar - 1) p (map redirect is)
+      in foldl App c' args
+    _ -> undefined
+    
+
+appendLeftSc :: Exp -> Exp -> Exp
+appendLeftSc a1 a2 = undefined
+
+appendRightSc :: Exp -> Exp -> Exp
+appendRightSc a1 a2 = undefined
     
 -- this rule always assume a1 and a2 are "unary"
 scCombine :: Exp -> Exp -> Exp
@@ -317,8 +495,8 @@ scCombine a1 a2 =
         else let
           a1NotUsed = notElem (ar1 - 1) is1
           a2NotUsed = notElem (ar2 - 1) is2
-          a1Improved = etaReduce $ fromPat p1 is1 args1
-          a2Improved = etaReduce $ fromPat p2 is2 args2
+          a1Improved = discardSc c1 args1 -- $ fromPat p1 is1 args1
+          a2Improved = discardSc c1 args1 -- $ fromPat p2 is2 args2
           a1Eta = etaReduce a1
           a2Eta = etaReduce a2
           in if a1NotUsed && a2NotUsed
@@ -330,8 +508,8 @@ scCombine a1 a2 =
              else app2 scS a1Eta a2Eta
       _ -> app2 scS a1 a2
 
-etaReduce :: Exp -> Exp
-etaReduce = id -- maybe we want to make sure, eta only applies singletons
+etaReduce :: Exp -> Exp -- only works for expressions that "need" x; not "discard" ones
+etaReduce = id -- maybe we want to make sure, eta won't populate any App
 -- etaReduce ae = 
 --   case ae of
 --     App f a ->

@@ -1,0 +1,68 @@
+[
+
+(EqList.eqList,(\$q1. (\$q2. (\$q3. (
+					($q2 (($q3 Data.Bool_Type.True) (\$x2. (\$x3. Data.Bool_Type.False)))) 
+					(\$x4. (\$x5. (
+					               ($q3 Data.Bool_Type.False) 
+					               (\$x6. (\$x7. ((Data.Bool.&& (($q1 $x4) $x6)) 
+					                              (((EqList.eqList $q1) $x5) $x7))
+					                      )
+					               )
+					              )
+					       )
+					)
+				    )
+			     )
+		      )
+		)
+),
+
+(EqList.eqList,(\$q1. (Y (\EqList.eqList@. 
+					(\$q2. (\$q3. (
+							($q2 (($q3 Data.Bool_Type.True) (\$x2. (\$x3. Data.Bool_Type.False)))) 
+							(\$x4. (\$x5. (($q3 Data.Bool_Type.False) 
+								       (\$x6. (\$x7. ((Data.Bool.&& (($q1 $x4) $x6)) 
+								       		      ((EqList.eqList@ $x5) $x7)
+								       		     )
+								       	      )
+								       )
+								      )
+							       )
+						        )
+						      )
+						)
+					)
+			 )
+		      )
+))
+
+{-
+
+
+
+-}
+
+(EqList.eqList',(\$q1. (\$q2. (\$q3. ((((Data.Bool.&& (EqList.notnull $q2)) (EqList.notnull $q3)) ((((Data.Bool.&& (NanoPrelude.null $q2)) (NanoPrelude.null $q3)) Data.Bool_Type.False) Data.Bool_Type.True)) ((Data.Bool.&& (($q1 (NanoPrelude.head $q2)) (NanoPrelude.head $q3))) (((EqList.eqList' $q1) (NanoPrelude.tail $q2)) (NanoPrelude.tail $q3)))))))),
+
+(EqList.eqList'',(\$q1. (\$q2. (\$q3. ((\$x2. (($q2 $x2) (\$x3. (\$x4. (($q3 $x2) (\$x5. (\$x6. ((Data.Bool.&& (($q1 $x3) $x5)) (((EqList.eqList'' $q1) $x4) $x6))))))))) ((EqList.eqListEmpty $q2) $q3)))))),
+
+(EqList.eqListEmpty,(\$q1. (\$q2. (($q1 (($q2 Data.Bool_Type.True) (\_. (\_. Data.Bool_Type.False)))) (\_. (\_. Data.Bool_Type.False)))))),(EqList.notnull,(\$q1. (($q1 Data.Bool_Type.False) (\$x2. (\$x3. Data.Bool_Type.True))))),
+
+(EqList.boolToInt,(\$q1. (($q1 #0) #42))),
+
+(EqList.lessThan,(\$q1. (\$q2. ((NanoPrelude.< $q1) $q2)))),
+
+(EqList.main,(EqList.boolToInt (((EqList.eqList EqList.lessThan) ((NanoPrelude.enumFromTo #1) #100)) ((NanoPrelude.enumFromTo #101) #200))))
+
+]
+
+[
+
+(Data.List_Type.[],(\$f. (\_. $f))),
+
+(Data.List_Type.:,(\$x0. (\$x1. (\_. (\$f. (($f $x0) $x1)))))), -- arg0: head; arg1: tail; arg2: select []; arg3: select (a:as)
+
+(Data.List_Type.++,(\$q1. (\$q2. ((Y (\rec. (\a0. ((a0 $q2) (\$x2. (\$x3. ((Data.List_Type.: $x2) (rec $x3)))))))) $q1)))),(Data.List_Type.concatMap,(\$q1. (Y (\rec. (\a0. ((a0 Data.List_Type.[]) (\$x2. (\$x3. ((Data.List_Type.++ ($q1 $x2)) (rec $x3))))))))))
+
+]
+

@@ -1,0 +1,50 @@
+main @0 |0| = 
+  let 0 -> APP False [FUN True 2 9,INT 1,INT 100]
+      1 -> APP False [FUN True 2 9,INT 101,INT 200]
+   in [FUN False 0 11,INT 0]
+   of <[LInline [(1,INT 0),(1,INT 42)]]>
+
+id @1 |1| = 
+  [ARG False False False 0]
+
+enumFromTo @2 |2| = 
+  [ARG True False False 0,ARG True False False 1,PRI 2 "(<=)",ARG True False False 0,ARG True False False 1]
+   of <[LInline [(2,CON 0 1),(0,FUN False 2 3)]]>
+
+enumFromTo#2 @3 |2| = 
+  let 0 -> PRIM 0 [ARG True False False 0,INT 1,PRI 2 "(+)"]
+   in [FUN False 0 12]
+
+eqList#2 @4 |3| = 
+  [ARG False False False 1,ARG False False False 2,ARG False False False 0]
+   of <[LOffset 6]>
+
+eqList#3 @5 |5| = 
+  [ARG True False False 2,ARG False False False 3,ARG False False False 0,ARG True False False 2,ARG False False False 4,ARG False False False 1]
+   of <[LInline [(3,CON 0 0),(0,FUN False 3 4)]]>
+
+eqList#7 @6 |4| = 
+  [ARG False False False 2,ARG False False False 3,ARG False False False 0,ARG False False False 1]
+   of <[LInline [(0,FUN False 5 5),(3,CON 0 0)]]>
+
+eqList#8 @7 |2| = 
+  [ARG False False False 0,INT 0]
+   of <[LInline [(3,CON 0 0),(1,CON 0 1)]]>
+
+lte @8 |2| = 
+  [ARG False False False 0,ARG False False False 1,PRI 2 "(<=)"]
+
+enumFromTo'1 @9 |2| = 
+  [ARG False False False 1,PRI 2 "unwrap",FUN True 2 10,ARG False False False 0]
+
+enumFromTo'2 @10 |2| = 
+  [FUN True 2 2,ARG False False False 1,ARG False False False 0]
+
+main @11 |0| = 
+  let 0 -> CASE (LOffset 6) [VAR False False False (-2),VAR False False False (-1),FUN True 2 8]
+   in [VAR False False False 0]
+
+enumFromTo#2 @12 |0| = 
+  let 0 -> APP False [FUN True 2 2,REG False 0,ARG False False False 1]
+   in [CON 2 0,ARG True False False 0,VAR False False False 0]
+

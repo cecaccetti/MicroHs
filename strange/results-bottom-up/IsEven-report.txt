@@ -18,3 +18,25 @@ peak update stack depth: 515
 - pipeline hidden: 0
 =======================================
 
+# after top-level lifting:
+
+=========== SIMULATION DONE ===========
+answer: 42
+cycle consumed: 6155
+program size: 9
+heap consumed: 1034
+heap consumed in runtime: 1025
+peak reduction stack depth: 9
+peak update stack depth: 515
+=======================================
++ PTR reductions: 2564
++ COMB reductions: 1541
++ INT applied reductions: 1025
++ INT swap reductions: 512
++ PRM reductions: 0
++ Y reductions: 0
++ heap updates in total: 1026
+- heap updates hidden: 513
+- pipeline hidden: 0
+=======================================
+

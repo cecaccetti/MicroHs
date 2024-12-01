@@ -1,0 +1,13 @@
+[
+
+(IsEven.isEven,(\$q1. (((Y (\$m1. (\$f. (($f (\a0. ((((NanoPrelude.== #0) a0) (($m1 (\x1. (\x2. x2))) ((NanoPrelude.- a0) #1))) Data.Bool_Type.True))) (\a0. ((((NanoPrelude.== #0) a0) (($m1 (\x1. (\x2. x1))) ((NanoPrelude.- a0) #1))) Data.Bool_Type.False)))))) (\x1. (\x2. x1))) $q1))),
+
+(IsEven.isEven',(\$q1. ((((NanoPrelude.== #0) $q1) (IsEven.isOdd' ((NanoPrelude.- $q1) #1))) Data.Bool_Type.True))),
+
+(IsEven.isOdd',(\$q1. ((((NanoPrelude.== #0) $q1) (IsEven.isEven' ((NanoPrelude.- $q1) #1))) Data.Bool_Type.False))),
+
+(IsEven.boolToInt,(\$q1. (($q1 #0) #42))),
+
+(IsEven.main,(IsEven.boolToInt (IsEven.isEven' #512)))
+
+]

@@ -31,7 +31,8 @@ type LDef = (Ident, Exp)
 desugar :: Flags -> TModule [EDef] -> TModule [LDef]
 desugar flags tm =
   setBindings tm (map lazier $ checkDup $ concatMap (dsDef flags (tModuleName tm)) (tBindingsOf tm))
-
+  -- setBindings tm (checkDup $ concatMap (dsDef flags (tModuleName tm)) (tBindingsOf tm))
+  
 dsDef :: Flags -> IdentModule -> EDef -> [LDef]
 dsDef flags mn adef =
   case adef of

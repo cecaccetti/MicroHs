@@ -1,0 +1,23 @@
+
+==== EXECUTION REPORT ====
+Result      = 42
+Ticks       =         2055
+Swap        =           0%
+Prim        =          24%
+Unwind      =           0%
+Update      =           0%
+Apply       =          74%
+PRS Success =          99%
+Heap Wait   =           0%
+#GCs        =            0
+#Cases      =          514
+#Templates  =            9
+#Allocs     =            0
+#Deallocs   =            0
+Heap Util   =           0%
+Max Heap    =            0
+Max Stack   =            6
+Max UStack  =            1
+Max LStack  =            2
+Max PStack  =            0
+==========================

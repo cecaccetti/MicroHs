@@ -1,0 +1,7 @@
+isEven n = if n== 0 then True  else isOdd  (n-1)
+isOdd  n = if n== 0 then False else isEven (n-1)
+    
+boolToInt True = 42
+boolToInt False = 0
+
+main = boolToInt (isEven 512)

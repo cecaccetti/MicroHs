@@ -13,12 +13,16 @@ isEven n =
   in
     isEven' n
     
+isEven' 0 = True
+isEven' i = isOdd' (i - 1)
+
+isOdd' 0 = False
+isOdd' i = isEven' (i - 1)
+    
 boolToInt :: Bool -> Int
 boolToInt True = 42
 boolToInt False = 0
 
 main :: Int
-main = boolToInt (isEven 512)
-	
-	
-	
+main = boolToInt (isEven' 512)
+

@@ -1,0 +1,13 @@
+eqList f [] [] = True
+eqList f [] (y : ys) = False
+eqList f (x : xs) [] = False
+eqList f (x : xs) (y : ys) = f x y && eqList f xs ys
+
+boolToInt True = 42
+boolToInt False = 0
+
+lte a b = a <= b
+
+main = boolToInt (eqList lte (enumFromTo 1 100) (enumFromTo 101 200))
+	
+	

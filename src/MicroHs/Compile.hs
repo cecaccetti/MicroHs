@@ -210,7 +210,7 @@ compileModule flags impt mn pathfn file = do
     dmdl = desugar flags tmdl
   () <- return $ rnfErr $ tBindingsOf dmdl
   t4 <- liftIO getTimeMilli
-
+  -- liftIO $ putStrLn $ "desugared:\n" ++ show (tBindingsOf dmdl) -- show lambda terms
   let
     opMoved =
       let
