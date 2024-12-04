@@ -225,24 +225,14 @@ abstractSc x ae =
                  Lam y e -> abstractSc y e
                  _ -> a
       in combineSc (abstractSc x f) (abstractSc x a) fOld aOld
-    -- App f a ->
-    --   case a of
-    --     Lam y e -> scCombine (abstractSc x f) (abstractSc x $ etaReduce $ abstractSc y e)
-    --     _ -> scCombine (abstractSc x f) (abstractSc x a)
     Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
-    -- Lam y e -> let
-    --   subLam = etaReduce $ abstractSc y e
-    --   noNested le = all (\a -> case a of
-    --                              App _ _ -> False
-    --                              _ -> True) (snd $ spine le)
-    --   next = if noNested subLam then abstractCurry x else abstractSc x
-    --   in next subLam
     Lit _ -> App scK ae 
     Sc ar pt is -> -- App scK ae
       if ar < 6 -- FIXME: parameterise this (maybe allow 7??)
       then Sc (ar + 1) pt (map (+ 1) is)
       else App scK ae
 
+-- this function is deprecated
 abstractCurry :: Ident -> Exp -> Exp
 abstractCurry x ae =
   case ae of
@@ -603,7 +593,7 @@ cS3 a1 a2 =
 
 {-
 --cS e1 e2 | trace ("S (" ++ toString e1 ++ ") (" ++ toString e2 ++ ")") False = undefined
-cS CK              _           = CI                -- S K e           = I
+cS CK              _           = CI                -- S K e           = I        NOT USING THE WHOLE e!
 cS (App CK e1)     (App CK e2) = cK (App e1 e2)    -- S (K e1) (K e2) = K (e1 e2)
 cS (App CK e1)     CI          = e1                -- S (K e1) I      = e1
 cS (App CK e1)     e2          = cB e1 e2          -- S (K e1) e2     = B e1 e2

@@ -104,47 +104,56 @@ genRom (mainName, ldefs) =
   let
     ds = inlineSingle ldefs
     dMap = M.fromList ds
-    -- state: 1. fun counter; 2. app counter; 3. function map; 4. resulting string
-    dfs :: Ident -> State (Int, Int, M.Map Exp, String -> String) ()
+    -- state: 1. fun counter; 2. app counter; 3. comb counter; 4. function map; 5. resulting string
+    dfs :: Ident -> State (Int, Int, Int, M.Map Exp, String -> String) ()
     dfs n = do
-      (i, ptr, seen, r) <- get
+      (i, ptr, combs, seen, r) <- get
       case M.lookup n seen of
         Just _ -> return ()
         Nothing -> do
           let e = findIdentIn n dMap
-          put (i, ptr + 1, M.insert n (ref ptr) seen, r)
+          put (i, ptr + 1, combs, M.insert n (ref ptr) seen, r)
           -- print this function
           buildFunc (substv e) (showIdent n)
-          (i', ptr', seen', r') <- get
-          put (i + 1, ptr', seen', r')
+          (i', ptr', combs', seen', r') <- get
+          put (i + 1, ptr', combs', seen', r')
           -- Walk n's children
           mapM_ dfs $ freeVars e
 
-    buildFunc :: Exp -> String -> State (Int, Int, M.Map Exp, String -> String) ()
+    buildFunc :: Exp -> String -> State (Int, Int, Int, M.Map Exp, String -> String) ()
     buildFunc e name =
       let
-        -- state: 1. ptr counter; 2. current spine; 3. apps
-        build :: Exp -> State (Int, String -> String, [String -> String]) ()
+        -- state: 1. ptr counter; 2. comb counter; 3. current spine; 4. apps
+        build :: Exp -> State (Int, Int, String -> String, [String -> String]) ()
         build e = do
-          (i, s, as) <- get
+          (i, combs, s, as) <- get
           case e of
             App f (App a1 a2) -> do
-              put (i, freeText "", as)
+              put (i, combs, freeText "", as)
               build (App a1 a2)
-              (i', s', as') <- get
-              put (i' + 1, ptr i' . s, as' ++ [app i' s'])
+              (i', combs', s', as') <- get
+              put (i' + 1, combs', ptr i' . s, as' ++ [app i' s'])
               build f
             App f a -> do
-              put(i, atom a . s, as)
+              let combs' =
+                    case a of
+                      Sc _ _ _ -> combs + 1
+                      _ -> combs
+              put(i, combs', atom a . s, as)
               build f
-            _ -> put(i, atom e . s, as)
+            _ -> do
+              let combs' =
+                    case e of
+                      Sc _ _ _ -> combs + 1
+                      _ -> combs
+              put(i, combs', atom e . s, as)
       in do
-      (i, ptr, seen, r) <- get
-      let (_, (ptr', spn, aps)) = runState (build e) (ptr, freeText "", [])
-      put (i, ptr', seen, r . ((" // FUN" ++ show i ++ name  ++ "\n") ++) . app (ptr - 1) spn . foldr (.) (freeText "") aps)
+      (i, ptr, combs, seen, r) <- get
+      let (_, (ptr', combs', spn, aps)) = runState (build e) (ptr, combs, freeText "", [])
+      put (i, ptr', combs', seen, r . ((" // FUN" ++ show i ++ name  ++ "\n") ++) . app (ptr - 1) spn . foldr (.) (freeText "") aps)
            
           
-    (_, (_, _, defs, res)) = runState (dfs mainName) (0, 0, M.empty, freeText "")
+    (_, (funCount, appCount, combCount, defs, res)) = runState (dfs mainName) (0, 0, 0, M.empty, freeText "")
     ref i = Var $ mkIdent $ "PTR" ++ show i
     findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
                       M.lookup n m
@@ -154,7 +163,11 @@ genRom (mainName, ldefs) =
         Var n -> findIdent n
         App f a -> App (substv f) (substv a)
         e -> e
-  in header ++ object "ProgramBin" (prog "prog" res) ""
+  in header ++
+     "// Functions in this file: " ++ show funCount ++ "\n"
+     ++ "// Apps in this file: " ++ show appCount ++ "\n"
+     ++ "// Combinators in this file: " ++ show combCount ++ "\n"
+     ++ object "ProgramBin" (prog "prog" res) ""
 
 atom :: Exp -> (String -> String)
 atom ae =

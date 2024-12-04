@@ -152,6 +152,9 @@ foldr f z =
     rec [] = z
     rec (x : xs) = f x (rec xs)
   in rec
+
+foldr' _ z [] = z
+foldr' f z (a:as) = f a (foldr' f z as)
   
 foldl :: forall a b . (b -> a -> b) -> b -> [a] -> b
 foldl _ z [] = z
