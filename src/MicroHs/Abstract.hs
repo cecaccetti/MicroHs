@@ -333,26 +333,34 @@ combineSc a1 a2 a1Old' a2Old' =
               c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ length args1) is2)
               redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
             in foldl App c (args1 ++ args2)
-          else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5
+          else if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
+            let
+              c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [length args1])
+              redirect i = if i == ar1 - 1 then ar1 else i
+            in foldl App c (args1 ++ [etaRewrite a2Old])
+          else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5; append left
             let
               c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [length args1, length args1 + 1])
               redirect i = if i == ar1 - 1 then ar1 else i
-            in foldl App c (args1 ++ [a2])
+            in foldl App c (args1 ++ [etaRewrite a2])
+          else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
+            let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
+            in foldl App c (etaRewrite a1Old : args2)
           else if getHoles p2 <= 4 && ar2 <= 5 then -- append right
             let
               c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
-            in foldl App c (a1 : args2)
+            in foldl App c (etaRewrite a1 : args2)
           else
             addSc a1Old c1 args1 a2Old c2 args2
         else if a1IsUnary then -- a2 is not unary
           if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
             let c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [ar1 - 1])
                 redirect i = if i == ar1 - 1 then ar1 else i
-            in App (foldl App c args1) a2Old
+            in App (foldl App c args1) (etaRewrite a2Old)
           else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5
             let c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [ar1 - 1, ar1]) -- appendLeftSc
                 redirect i = if i == ar1 - 1 then ar1 else i
-            in foldl App c (args1 ++ [a2])
+            in foldl App c (args1 ++ [etaRewrite a2])
           -- else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
           --   let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
           --   in foldl App c (a1Old : args2)
@@ -422,12 +430,12 @@ addSc a1Old' c1 args1 a2Old' c2 args2 =
   case (c1, c2) of
     (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
       let
-        a1Old = discardSc c1 args1
-        a2Old = discardSc c2 args2
         a1NotUsed = notElem (length args1) is1
         a2NotUsed = notElem (length args2) is2
-        a1Eta = etaReduce $ fromSpine (c1, args1) 
-        a2Eta = etaReduce $ fromSpine (c2, args2)
+        a1Old = etaRewrite $ discardSc c1 args1
+        a2Old = etaRewrite $ discardSc c2 args2
+        a1Eta = etaRewrite $ fromSpine (c1, args1) 
+        a2Eta = etaRewrite $ fromSpine (c2, args2)
       in if a1NotUsed && a2NotUsed
          then App scK (App a1Old a2Old)
          else if a1NotUsed
@@ -438,7 +446,7 @@ addSc a1Old' c1 args1 a2Old' c2 args2 =
     _ -> undefined
 
 discardSc :: Exp -> [Exp] -> Exp
-discardSc c args = 
+discardSc c args = -- FIXME: discarding (K e) should return (e) instead of (I e)
   case c of
     Sc ar p is -> -- should not contain any `length args` in `is`
       let
@@ -449,13 +457,41 @@ discardSc c args =
         c' = Sc (ar - 1) p (map redirect is)
       in foldl App c' args
     _ -> undefined
-    
 
 appendLeftSc :: Exp -> Exp -> Exp
 appendLeftSc a1 a2 = undefined
 
 appendRightSc :: Exp -> Exp -> Exp
 appendRightSc a1 a2 = undefined
+
+noDuplicates :: Eq a => [a] -> Bool
+noDuplicates [] = True
+noDuplicates (x:xs) = x `notElem` xs && noDuplicates xs
+
+etaRewrite :: Exp -> Exp -- only works for expressions that "need" x; not "discard" ones
+etaRewrite ae = -- maybe we want to make sure, eta won't populate any App
+  case ae of
+    App f a ->
+      let
+        (c, args) = spine ae
+        isOnlyLast :: Int -> [Int] -> Bool
+        isOnlyLast x xs = last xs == x && count x xs == 1
+          where count n = length . filter (== n)
+        smallTail (At _ X) = True
+        smallTail _ = False
+        stripTail (At p X) = p
+        stripTail p = p
+        safeToApply = noDuplicates args
+      in
+        case c of
+          Sc ar p is ->
+            if ar == length args && safeToApply
+            then fromPat p is args -- this is harmful for let expressions
+            else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
+            then fromPat (stripTail p) (init is) args
+            else fromSpine (c, map etaRewrite args)
+          _ -> fromSpine (c, map etaRewrite args)
+    _ -> ae
     
 -- this rule always assume a1 and a2 are "unary"
 scCombine :: Exp -> Exp -> Exp
