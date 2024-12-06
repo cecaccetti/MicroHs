@@ -155,7 +155,7 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt =  etaReduce . compileExpSc . removeSKI . opInfix
+compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix
 -- compileOpt = removeSKI . improveT . compileExp  . opInfix
 
 removeSKI :: Exp -> Exp
@@ -369,7 +369,9 @@ combineSc a1 a2 a1Old' a2Old' =
           --   in foldl App c (a1 : args2)
           else
             addSc a1Old c1 args1 a2Old c2 args2 -- consider how to compress later
-        else if a2IsUnary && getHoles p1 + length (filter (== length args1 + 1) is1) * (getHoles p2 - 1) <= 6 then -- a1 is not unary, will absorb a2
+        else if a2IsUnary &&
+                length (filter (== length args1 + 1) is1) <= 1 && -- avoid recompute
+                getHoles p1 + length (filter (== length args1 + 1) is1) * (getHoles p2 - 1) <= 6 then -- a1 is not unary, will absorb a2
           let
             updatePat p is = updatePatWith p is p2
             newAr = ar1 + ar2 - 2
@@ -390,8 +392,9 @@ combineSc a1 a2 a1Old' a2Old' =
               c = Sc ar1 p1
                 (map (\n -> if n == -1 then length args1 + 1 else n)
                  (replaceWith (map redirect is1) (length args1 + 1) [length args1]))
-            in App (foldl App c args1) a2Old
-          else if getHoles p1 + length (filter (== length args1 + 1) is1) <= 6 then -- append on left
+            in App (foldl App c args1) (etaRewrite a2Old)
+          else if length (filter (== length args1 + 1) is1) <= 1 && -- avoid recompute
+                  getHoles p1 + length (filter (== length args1 + 1) is1) <= 6 then -- append on left
             let
               updatePat p is = updatePatWith p is (At X X)
               newPat = updatePat p1 is1
@@ -399,7 +402,7 @@ combineSc a1 a2 a1Old' a2Old' =
               c = Sc ar1 newPat
                 (map (\n -> if n == -1 then length args1 + 1 else n)
                  (replaceWith (map redirect is1) (length args1 + 1) [length args1, length args1 + 1]))
-            in App (foldl App c args1) a2
+            in App (foldl App c args1) (etaRewrite a2)
           -- else if getHoles p2 <= 4 && ar2 <= 5 then -- append on right
           --     let c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
           --     in foldl App c (a1 : args2)
@@ -468,8 +471,8 @@ noDuplicates :: Eq a => [a] -> Bool
 noDuplicates [] = True
 noDuplicates (x:xs) = x `notElem` xs && noDuplicates xs
 
-etaRewrite :: Exp -> Exp -- only works for expressions that "need" x; not "discard" ones
-etaRewrite ae = -- maybe we want to make sure, eta won't populate any App
+etaRewrite :: Exp -> Exp -- maybe this should be a fixed point function?
+etaRewrite ae = 
   case ae of
     App f a ->
       let
@@ -486,7 +489,7 @@ etaRewrite ae = -- maybe we want to make sure, eta won't populate any App
         case c of
           Sc ar p is ->
             if ar == length args && safeToApply
-            then fromPat p is args -- this is harmful for let expressions
+            then fromPat p is (map etaRewrite args) 
             else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
             then fromPat (stripTail p) (init is) args
             else fromSpine (c, map etaRewrite args)

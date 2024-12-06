@@ -93,10 +93,11 @@ emitClause (c, a) = sum c + sum a
 eqv a b = Con (Dis (Neg a) b) (Dis (Neg b) a)
 
 -- Small main
-main = let p = eqv (eqv a $ eqv a a)
-                   (eqv a $ eqv a a)
-           a = Sym (0::Int)
-       in display $ clausify $ foldr Con a $ replicate 2 p
+main = --let p = eqv (eqv a $ eqv a a)
+         --          (eqv a $ eqv a a)
+           --a = Sym (0::Int)
+       --in display $ clausify $ foldr Con a $ replicate 2 p -- TODO: strange, check why the compiler does not apply this
+       display $ clausify $ foldr Con (Sym (0::Int)) $ replicate 2 (eqv (eqv (Sym (0::Int)) $ eqv (Sym (0::Int)) (Sym (0::Int))) (eqv (Sym (0::Int)) $ eqv (Sym (0::Int)) (Sym (0::Int))))
 
 {-
 -- Large main
