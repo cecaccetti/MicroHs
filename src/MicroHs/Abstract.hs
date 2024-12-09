@@ -484,7 +484,7 @@ etaRewrite ae =
         smallTail _ = False
         stripTail (At p X) = p
         stripTail p = p
-        safeToApply = noDuplicates args
+        -- safeToApply = noDuplicates args
       in
         case c of
           Sc ar p is ->
@@ -493,6 +493,8 @@ etaRewrite ae =
             else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
             then fromPat (stripTail p) (init is) args
             else fromSpine (c, map etaRewrite args)
+            where
+              safeToApply = noDuplicates is
           _ -> fromSpine (c, map etaRewrite args)
     _ -> ae
     
