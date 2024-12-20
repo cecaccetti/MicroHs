@@ -1,0 +1,277 @@
+cradle:
+  cabal:
+    - path: "ghc/MicroHs/Main.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Main.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Abstract.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Builtin.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Compile.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/CompileCache.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Deriving.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Desugar.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/EncodeData.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Exp.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/ExpPrint.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Expr.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/FFI.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Flags.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Fixity.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Graph.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Ident.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/IdentMap.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/IntMap.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/IntSet.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Instances.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Interactive.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Lex.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/List.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/MakeCArray.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Package.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Parse.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/State.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/StateIO.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/SymTab.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/TCMonad.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/Translate.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/TypeCheck.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/TargetConfig.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MicroHs/GenRom.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/Text/ParserComb.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/Text/PrettyPrint/HughesPJLite.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/System/Console/SimpleReadline.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/Data/Double.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/Data/Integer.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/Compat.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/PrimTable.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/MHSPrelude.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/System/IO/MD5.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/System/IO/Serialize.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/System/IO/TimeMilli.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "ghc/System/Compress.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Abstract.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Builtin.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Compile.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/CompileCache.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Deriving.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Desugar.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/EncodeData.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Exp.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/ExpPrint.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Expr.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/FFI.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Flags.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Fixity.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Graph.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Ident.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/IdentMap.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/IntMap.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/IntSet.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Instances.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Interactive.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Lex.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/List.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/MakeCArray.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Package.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Parse.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/State.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/StateIO.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/SymTab.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/TCMonad.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/Translate.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/TypeCheck.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/TargetConfig.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/GenRom.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/Text/ParserComb.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/Text/PrettyPrint/HughesPJLite.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/System/Console/SimpleReadline.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/Data/Double.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/Data/Integer.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/Compat.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/PrimTable.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MHSPrelude.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/System/IO/MD5.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/System/IO/Serialize.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/System/IO/TimeMilli.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/System/Compress.hs"
+      component: "MicroHs:exe:mhs"

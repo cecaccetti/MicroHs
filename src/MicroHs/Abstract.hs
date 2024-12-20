@@ -7,6 +7,9 @@ import MicroHs.Ident
 import MicroHs.Exp
 import MicroHs.Expr(Lit(..))
 
+import Control.Monad
+import Data.List
+
 --
 -- Used combinators
 --   * indicates that the implementation uses an indirection
@@ -318,6 +321,10 @@ takeWhile4 = Lam (mkIdent "takeWhile@") (Lam (mkIdent "q2") (App (App (Var (mkId
 takeWhile4' = Lam (mkIdent "q2") (App (App (Var (mkIdent "q2")) (Var (mkIdent "[]"))) takeWhile3)
 
 takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
+
+-- shouldn't we create: gotCha x y a b = x a y?
+gotCha = Lam (mkIdent "x") (Lam (mkIdent "y") (App
+                                               (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
 
 combineSc :: Exp -> Exp -> Exp -> Exp -> Exp
 combineSc a1 a2 a1Old' a2Old' =
@@ -873,3 +880,293 @@ reduce e = red e []
 
     xxx s = trace s True
 -}
+
+-- ==== Integrating Cecil's code gen in: https://github.com/fun-isa/repl ====
+
+-- de-bruijin indecies are used
+
+data ExpCa =  AppCa ExpCa ExpCa
+         |  ApLCa ExpCa [ExpCa]
+         -- |  LVar String Exp
+         |  LamCa Int ExpCa
+         |  NumCa Int
+         |  SymCa String 
+         |  IdxCa Int 
+         |  C TypeCa Int [Int]
+         deriving (Show)
+
+data PatternCa = PattCa TypeCa ExpCa
+  deriving (Show)
+
+data TypeCa = Tx | T0 | T1 | T2 | T3 | T4 | T5 | T6 | T7 
+          | T8 | T9| T10| T11| T12| T13| T14 | T15 
+          | T16 | T17 | T18 | T19 | T20 | T21 | T22 | 
+          T23 | T24 | T25 | T26 | T27 | T28 | T29 | T30
+          |T31 | T32 | T33 | T34 | T35 | T36 | T37 | T38 | T39
+          | T40 | T41 | T42 | T43 | T44 | T45 | T46 |
+            T47 | T48 | T49 | T50 | T51 | T52 | T53 | T54 |
+         T55 | T56 | T57 | T58 | T59 | T60 | T61 | T62 | T63
+          deriving(Eq, Show)
+
+mkType :: Int -> TypeCa
+mkType 0 = T0
+mkType 1 = T1
+mkType 2 = T2
+mkType 3 = T3
+mkType 4 = T4
+mkType 5 = T5
+mkType 6 = T6
+mkType 7 = T7
+mkType 8 = T8
+mkType 9 = T9
+mkType 10 = T10
+mkType 11 = T11
+mkType 12 = T12
+mkType 13 = T13
+mkType 14 = T14
+mkType 15 = T15
+mkType 16 = T16
+mkType 17 = T17
+mkType 18 = T18
+mkType 19 = T19
+mkType 20 = T20
+mkType 21 = T21
+mkType 22 = T22
+mkType 23 = T23
+mkType 24 = T24
+mkType 25 = T25
+mkType 26 = T26
+mkType 27 = T27
+mkType 28 = T28
+mkType 29 = T29
+mkType 30 = T30
+mkType 31 = T31
+mkType 32 = T32
+mkType 33 = T33
+mkType 34 = T34
+mkType 35 = T35
+mkType 36 = T36
+mkType 37 = T37
+mkType 38 = T38
+mkType 39 = T39
+mkType 40 = T40
+mkType 41 = T41
+mkType 42 = T42
+mkType 43 = T43
+mkType 44 = T44
+mkType 45 = T45
+mkType 46 = T46
+mkType 47 = T47
+mkType 48 = T48
+mkType 49 = T49
+mkType 50 = T50
+mkType 51 = T51
+mkType 52 = T52
+mkType 53 = T53
+mkType 54 = T54
+mkType 55 = T55
+mkType 56 = T56
+mkType 57 = T57
+mkType 58 = T58
+mkType 59 = T59
+mkType 60 = T60
+mkType 61 = T61
+mkType 62 = T62
+mkType 63 = T63
+
+-- convert Exp to Cecil's ExpCa (de-bruijin form)
+e2db :: Exp -> ExpCa
+e2db (App a b)  = AppCa (e2db a)(e2db b)
+e2db (Lam id e) = LamCa 1 (dbracket 1 (showIdent id) (e2db e))
+e2db (Var id) = SymCa (showIdent id) -- should only be funtion pointers, no lambda var here
+e2db (Lit (LInt i)) = NumCa i
+e2db (Lit (LPrim s)) = SymCa s
+e2db (Lit _) = error "unknown lit"
+e2db (Sc a p is) = C (sc2C p) a (map (+1) is) -- maybe starting from 1?
+
+-- convert back
+db2e :: ExpCa -> Exp
+db2e (AppCa a b) = App (db2e a) (db2e b)
+db2e (SymCa s) = Var (mkIdent s) -- FIXME: op and Y should be Lit LPrim; function pointers should be Var
+db2e (NumCa n) = Lit (LInt n)
+db2e (C t a is) = Sc a (c2Sc t) (map (\i -> i - 1) is)
+db2e _ = error "unknown ExpCa"
+
+-- determine whether an Sc pattern and a Cecil's pattern are the same
+samePat :: Pat -> ExpCa -> Bool
+samePat X (IdxCa _) = True
+samePat (At p1 p2) (AppCa e1 e2) = samePat p1 e1 && samePat p2 e2
+samePat _ _ = False
+
+sc2C :: Pat -> TypeCa
+sc2C p =
+  let
+    extractExpCa (PattCa _ e) = e
+  in
+    case find (samePat p . extractExpCa) patternList of
+      Just (PattCa t _) -> t
+      Nothing -> error "fail to translate a pattern"
+
+c2Sc :: TypeCa -> Pat
+c2Sc t =
+  let
+    expCa2Pat :: ExpCa -> Pat
+    expCa2Pat (IdxCa _) = X
+    expCa2Pat (AppCa e1 e2) = At (expCa2Pat e1) (expCa2Pat e2)
+    extractT (PattCa tn _) = tn
+  in
+    case find ((== t) . extractT) patternList of
+      Just (PattCa _ e) -> expCa2Pat e
+      Nothing -> error "fail to translate a pattern back"
+
+-- all the possible patterns
+patternList =
+  let
+    mkPatt :: Int -> [ExpCa] -> [PatternCa]
+    mkPatt _ [] = []
+    mkPatt n (x:xs) = (PattCa (mkType n) x ) : (mkPatt (n+1) xs)
+    adjustIn :: Int -> ExpCa -> (Int, ExpCa)
+    adjustIn n (AppCa e1 e2) = (fst ee2 , AppCa (snd ee1) (snd ee2) )
+        where ee1 = adjustIn n e1  
+              ee2 = adjustIn (fst ee1) e2   
+    adjustIn n (IdxCa m) = (n+1 , IdxCa n)
+  in
+    (PattCa Tx (IdxCa 1)) :  (mkPatt 0 (map (snd .(adjustIn 1)) (concat (tail(take 6 sizes)))))
+
+sizes :: [[ExpCa]]
+sizes = [IdxCa 0] : (map go . drop 1 . inits) sizes  where
+    go smaller = do
+      (ls, rs) <- zip smaller (reverse smaller)
+      liftM2 AppCa ls rs
+
+-- remove bound var from a lambda body;
+-- if we use microhs's bracket abstraction, we don't need this
+dbracket :: Int -> String -> ExpCa -> ExpCa
+dbracket n var (AppCa a b) = AppCa (dbracket n var a) (dbracket n var b)
+-- dbracket n var (Sym x) | x == var = Idx n
+--                        | otherwise = (Sym x)
+-- dbracket n var (Lam idx e) = Lam idx (dbracket (n + 1) var e)
+-- dbracket _ _ (Idx x) = (Idx x)  
+-- dbracket _ _ e = e 
+
+-- compactLam :: Exp -> Exp
+-- compactLam (App e1 e2) = App (compactLam e1) (compactLam e2)
+-- compactLam (Lam id1 (Lam id2 e)) = compactLam  (Lam (id1 + id2) (compactLam e))
+-- compactLam (Lam id e) = Lam id (compactLam e)
+-- compactLam e =  e
+
+-- top-down pattern matching
+toCombi :: ExpCa -> Int -> Maybe ExpCa
+toCombi e a | a < 9 =  case (matchPattern e patternList)of 
+                        Nothing -> Nothing
+                        Just (PattCa t0 f) -> Just (C t0 a (traverseExp e))
+            | otherwise = Nothing
+
+matchPattern :: ExpCa -> [PatternCa] -> Maybe PatternCa
+matchPattern exp  [] = Nothing
+matchPattern exp (x:xs) | matchExp exp pj = (Just x) 
+                         | otherwise = matchPattern exp xs  where pj = (projectList x)
+
+projectList :: PatternCa -> ExpCa
+projectList (PattCa _ xs) = xs
+
+traverseExp :: ExpCa -> [Int]
+traverseExp (AppCa e1 e2) = (traverseExp e1) ++ (traverseExp e2)
+traverseExp (IdxCa x) = [x]
+
+matchExp :: ExpCa -> ExpCa -> Bool
+matchExp (AppCa (IdxCa _) (IdxCa _)) (AppCa (IdxCa _) (IdxCa _)) = True
+matchExp (AppCa (IdxCa _) e1) (AppCa (IdxCa _) e2) = matchExp e1 e2
+matchExp (AppCa e1 (IdxCa _)) (AppCa e2 (IdxCa _)) = matchExp e1 e2
+matchExp (AppCa e1 e2) (AppCa e3 e4) = (matchExp e1 e3) && (matchExp e2 e4)
+matchExp (IdxCa _ ) (IdxCa _) = True
+matchExp e1 e2 = False
+
+-- key: merging ski combinators to bigger ones
+unify :: ExpCa -> ExpCa
+unify = (unflatten . unify2 . (flatten []))
+
+unify2 :: ExpCa -> ExpCa
+unify2 (ApLCa (C t a l) ls ) = case (len >= a ) of
+                             True -> unify2 (redux (ApLCa (C t a l) ls ))
+                             False -> case ls of
+                                    [] ->   ((C t a l) )
+                                    _ -> case (head lss) of
+                                           (C t2 a2 l2) -> case (combine (idxs 1) (ApLCa (C t a l) [C t2 a2 l2]) ) of
+                                                      Nothing -> ApLCa (C t a l) (lss) 
+                                                      Just x -> unify2(ApLCa x (tail lss))
+--                                           
+                                           (ApLCa (C t2 a2 l2) lz) -> case (combine (idxs ((length lz) + 1)) (ApLCa (C t a l) [ApLCa (C t2 a2 l2) (idxs2 (length lz) 1  )] ) )  of
+                                                                 Nothing -> ApLCa (C t a l) (lss)
+                                                                 Just x ->   (ApLCa x (lz ++ (tail lss)))
+                                                                                                             
+                                           _ -> ApLCa (C t a l) lss
+                                         where lss = map unify2 ls
+                             where len = length ls
+unify2 (ApLCa e ls) = ApLCa e (map unify2 ls)
+unify2 e = e
+
+redux ::  ExpCa  -> ExpCa
+redux (ApLCa (C t a l) ls)   | len >= a =  redux e -- subs ps
+                           | otherwise = (ApLCa (C t a l) (map redux ls)) 
+                           where e =  mapApl (subsInternal ) (flatten (drop a ls) (typeEval t patternList  ls l))
+                                 len = length ls
+redux  e = e
+
+subsInternal ::   ExpCa  -> ExpCa
+subsInternal  (ApLCa (C t a l) ls) | len >= a =  subsInternal  e -- subs ps
+                                 | otherwise = (ApLCa (C t a l) ls)
+                           where e =  mapApl (subsInternal) (flatten (drop a ls) (typeEval t patternList  ls l))
+                                 len = length ls
+subsInternal  e = e
+
+mapApl ::  (ExpCa -> ExpCa) -> ExpCa -> ExpCa
+mapApl f (ApLCa e ls) = ApLCa e (map f ls)
+mapApl _ e = e
+
+idxs :: Int -> [ExpCa]
+idxs n =  (IdxCa n)  : idxs (n+1)
+
+
+idxs2 :: Int ->  Int -> [ExpCa]
+idxs2 m n | m >= n  = (IdxCa n)  : (idxs2 m (n+1))
+          | otherwise = []
+
+combine :: [ExpCa]  ->  ExpCa  ->  Maybe ExpCa
+combine ps (ApLCa (C t a l) ls) | len >= a =  combine ps  e -- subs ps
+                              | len < a =   combine (drop (a - len) ps ) ee -- subs (drop (a - len) ps )
+                          
+                           where e =  mapApl (subsInternal ) (flatten (drop a ls) (typeEval t patternList  ls l))
+                                 ee =  mapApl (subsInternal ) (flatten [] (typeEval t patternList  (ls++(take (a - len) (ps) )) l))
+                                 len = length ls
+combine ps (C t a l) = combine (tail ps) (ApLCa (C t a l) [(head ps)])
+combine ps e =  toCombi (unflatten e) (getIndex (head ps) - 1)
+
+typeEval :: TypeCa -> [PatternCa] -> [ExpCa] -> [Int]-> ExpCa
+typeEval tp ts ls pl =  typeEval_ (getPattEx tp ts) ls pl  
+
+typeEval_ :: ExpCa -> [ExpCa] -> [Int] -> ExpCa
+typeEval_ (AppCa e1 e2) ls pl = AppCa (typeEval_ e1 ls pl  ) (typeEval_ e2 ls pl)
+typeEval_ (IdxCa n) ls pl =  (unflatten(ls!!((pl!!(n-1))-1)))
+
+getIndex (IdxCa x) = x
+
+getPattEx :: TypeCa -> [PatternCa] -> ExpCa
+getPattEx _ [] = error("Pattern not found")
+getPattEx t ((PattCa tt ex):xs) | tt == t  = ex
+                               | otherwise = getPattEx t xs 
+
+flatten :: [ExpCa] -> ExpCa -> ExpCa
+flatten ls (AppCa e1 e2)  = flatten  ((flatten [] e2) :ls) e1
+flatten ls (ApLCa (ApLCa a l1) l2) = ApLCa a (l1 ++ l2)
+flatten ls (ApLCa a []) = a
+flatten [] e = e
+flatten ls e  = ApLCa e ls
+
+unflatten :: ExpCa -> ExpCa
+unflatten (ApLCa e ls) = mkAp e (map unflatten ls)
+unflatten e = e
+
+mkAp :: ExpCa -> [ExpCa] -> ExpCa
+mkAp e [] = e
+mkAp e (x:xs) = mkAp (AppCa e x) xs
