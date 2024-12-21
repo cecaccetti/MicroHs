@@ -158,8 +158,9 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix
--- compileOpt = removeSKI . improveT . compileExp  . opInfix
+-- compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method
+-- compileOpt = removeSKI . improveT . compileExp  . opInfix -- ski from microhs
+compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
 
 removeSKI :: Exp -> Exp
 removeSKI (App f a) = App (removeSKI f) (removeSKI a)
@@ -881,7 +882,7 @@ reduce e = red e []
     xxx s = trace s True
 -}
 
--- ==== Integrating Cecil's code gen in: https://github.com/fun-isa/repl ====
+-- ==== Integrating Cecil's code gen: https://github.com/fun-isa/repl ====
 
 -- de-bruijin indecies are used
 
@@ -890,7 +891,8 @@ data ExpCa =  AppCa ExpCa ExpCa
          -- |  LVar String Exp
          |  LamCa Int ExpCa
          |  NumCa Int
-         |  SymCa String 
+         |  SymCa String
+         |  PrimCa String
          |  IdxCa Int 
          |  C TypeCa Int [Int]
          deriving (Show)
@@ -980,14 +982,26 @@ e2db (App a b)  = AppCa (e2db a)(e2db b)
 e2db (Lam id e) = LamCa 1 (dbracket 1 (showIdent id) (e2db e))
 e2db (Var id) = SymCa (showIdent id) -- should only be funtion pointers, no lambda var here
 e2db (Lit (LInt i)) = NumCa i
-e2db (Lit (LPrim s)) = SymCa s
-e2db (Lit _) = error "unknown lit"
+e2db (Lit (LPrim s)) = PrimCa s
+-- ad-hoc fix to satisfy the compiler
+e2db (Lit l) = case l of
+  LInteger i -> SymCa (show i)
+  LDouble i -> SymCa (show i)
+  LRat i -> SymCa (show i)
+  LChar i -> SymCa (show i)
+  LStr i -> SymCa i
+  LUStr i -> SymCa i
+  LExn i -> SymCa i
+  LForImp i _ -> SymCa i
+  LTick i -> SymCa i
+-- e2db (Lit _) = error "unknown lit!"
 e2db (Sc a p is) = C (sc2C p) a (map (+1) is) -- maybe starting from 1?
 
 -- convert back
 db2e :: ExpCa -> Exp
 db2e (AppCa a b) = App (db2e a) (db2e b)
 db2e (SymCa s) = Var (mkIdent s) -- FIXME: op and Y should be Lit LPrim; function pointers should be Var
+db2e (PrimCa p) = Lit (LPrim p)
 db2e (NumCa n) = Lit (LInt n)
 db2e (C t a is) = Sc a (c2Sc t) (map (\i -> i - 1) is)
 db2e _ = error "unknown ExpCa"
