@@ -158,9 +158,9 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
--- compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method
+compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method
 -- compileOpt = removeSKI . improveT . compileExp  . opInfix -- ski from microhs
-compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
+-- compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
 
 removeSKI :: Exp -> Exp
 removeSKI (App f a) = App (removeSKI f) (removeSKI a)
@@ -232,7 +232,7 @@ abstractSc x ae =
     Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
     Lit _ -> App scK ae 
     Sc ar pt is -> -- App scK ae
-      if ar < 6 -- FIXME: parameterise this (maybe allow 7??)
+      if ar < 7 -- FIXME: parameterise this (maybe allow 7??)
       then Sc (ar + 1) pt (map (+ 1) is)
       else App scK ae
 
@@ -480,31 +480,64 @@ noDuplicates [] = True
 noDuplicates (x:xs) = x `notElem` xs && noDuplicates xs
 
 etaRewrite :: Exp -> Exp -- maybe this should be a fixed point function?
-etaRewrite ae = 
+etaRewrite = etaApply . etaShrink
+-- etaRewrite ae = 
+--   case ae of
+--     App f a ->
+--       let
+--         (c, args) = spine ae
+--         isOnlyLast :: Int -> [Int] -> Bool
+--         isOnlyLast x xs = last xs == x && count x xs == 1
+--           where count n = length . filter (== n)
+--         smallTail (At _ X) = True
+--         smallTail _ = False
+--         stripTail (At p X) = p
+--         stripTail p = p
+--       in
+--         case c of
+--           Sc ar p is ->
+--             if ar == length args && safeToApply
+--             then fromPat p is (map etaRewrite args) 
+--             else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
+--             then fromPat (stripTail p) (init is) args
+--             else fromSpine (c, map etaRewrite args)
+--             where
+--               safeToApply = noDuplicates is
+--           _ -> fromSpine (c, map etaRewrite args)
+--     _ -> ae
+
+etaShrink :: Exp -> Exp
+etaShrink (App e1 e2) = App (etaShrink e1) (etaShrink e2)
+etaShrink (Sc ar p is) =
+  if isOnlyLast (ar - 1) is && smallTail p
+  then etaShrink (Sc (ar - 1) (stripTail p) (init is)) -- fixed-point recursion
+  else Sc ar p is
+  where
+    isOnlyLast :: Int -> [Int] -> Bool
+    isOnlyLast x xs = last xs == x && count x xs == 1
+      where count n = length . filter (== n)
+    smallTail (At _ X) = True
+    smallTail _ = False
+    stripTail (At p' X) = p'
+    stripTail p' = p'
+etaShrink e = e
+
+etaApply :: Exp -> Exp
+etaApply ae =
   case ae of
     App f a ->
       let
         (c, args) = spine ae
-        isOnlyLast :: Int -> [Int] -> Bool
-        isOnlyLast x xs = last xs == x && count x xs == 1
-          where count n = length . filter (== n)
-        smallTail (At _ X) = True
-        smallTail _ = False
-        stripTail (At p X) = p
-        stripTail p = p
-        -- safeToApply = noDuplicates args
       in
         case c of
           Sc ar p is ->
             if ar == length args && safeToApply
-            then fromPat p is (map etaRewrite args) 
-            else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
-            then fromPat (stripTail p) (init is) args
-            else fromSpine (c, map etaRewrite args)
+            then etaApply (fromPat p is (map etaApply args)) -- fixed-point recursion
+            else fromSpine (c, map etaApply args)
             where
               safeToApply = noDuplicates is
           _ -> fromSpine (c, map etaRewrite args)
-    _ -> ae
+    _ -> ae 
     
 -- this rule always assume a1 and a2 are "unary"
 scCombine :: Exp -> Exp -> Exp
@@ -1071,7 +1104,7 @@ dbracket n var (AppCa a b) = AppCa (dbracket n var a) (dbracket n var b)
 
 -- top-down pattern matching
 toCombi :: ExpCa -> Int -> Maybe ExpCa
-toCombi e a | a < 9 =  case (matchPattern e patternList)of 
+toCombi e a | a < 8 =  case (matchPattern e patternList)of -- allowing arity up to 7
                         Nothing -> Nothing
                         Just (PattCa t0 f) -> Just (C t0 a (traverseExp e))
             | otherwise = Nothing

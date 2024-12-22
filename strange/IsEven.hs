@@ -24,5 +24,5 @@ boolToInt True = 42
 boolToInt False = 0
 
 main :: Int
-main = boolToInt (isEven' 512)
+main = boolToInt (isEven 512)
 
