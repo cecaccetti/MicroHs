@@ -47,12 +47,15 @@ Differences:
  * Kind variables need an explicit `forall`.
  * Always enabled extension:
    * BangPatterns
+   * BinaryLiterals
    * ConstraintKinds
    * DefaultSignatures
    * DoAndIfThenElse
    * DuplicateRecordFields
+   * EmptyCase
    * EmptyDataDecls
    * ExistentialQuantification
+   * ExplicitNamespaces
    * ExtendedDefaultRules
    * FlexibleContexts
    * FlexibleInstance
@@ -74,12 +77,15 @@ Differences:
    * NegativeLiterals
    * NoMonomorphismRestriction
    * NoStarIsType
+   * NumericUnderscores
    * OrPatterns
    * OverlappingInstances
    * OverloadedRecordDot
    * OverloadedRecordUpdate
    * OverloadedStrings
+   * PatternSynonyms
    * PolyKinds
+   * PolymorphicComponents
    * RankNTypes
    * RecordWildCards
    * QualifiedDo
@@ -161,6 +167,7 @@ it will be the entry point to the program.
 * `-T` generate dynamic function usage statistics
 * `-z` compress combinator code generated in the `.c` file
 * `-l` show every time a module is loaded
+* `-s` show compilation speed in lines/s
 * `-XCPP` run `cpphs` on source files
 * `-Dxxx` passed to `cpphs`
 * `-Ixxx` passed to `cpphs`
@@ -401,8 +408,7 @@ The C code for the evaluator does not use any special features, and should be
 portable to many platforms.  It has mostly been tested with MacOS and Linux,
 and somewhat with Windows.
 
-The code has mostly been tested on 64 bit platforms, so again, there are lurking problems
-with other word sizes, but they should be easy to fix.
+The code has been tested on 64- and 32-bit little-endian platforms.
 
 The `src/runtime/` directory contains configuration files for different platform.
 Use the appropriate `src/runtime/eval-`*platform*`.c`.
@@ -422,6 +428,8 @@ This assumes that you have `git` to download the needed packages.
 At the moment, the downloaded packages are forks of the original to
 make it compile with `mhs`.
 
+To identify that it is MicroHs that is the compiler it defines the symbol `__MHS__`.
+
 # FAQ
 * 
   * Q: When will it get _insert feature_?
@@ -431,8 +439,8 @@ make it compile with `mhs`.
   * A: Error messages are boring.
 * 
   * Q: Why is the so much source code?
-  * A: I wonder this myself.  7000+ lines of Haskell seems excessive.
-       2500+ lines of C is also more than I'd like for such a simple system.
+  * A: I wonder this myself.  10000+ lines of Haskell seems excessive.
+       6000+ lines of C is also more than I'd like for such a simple system.
 * 
   * Q: Why are the binaries so big?
   * A: The combinator file is rather verbose.  The combinator file

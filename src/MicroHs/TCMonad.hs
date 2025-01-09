@@ -13,6 +13,7 @@ import MicroHs.Expr
 import MicroHs.Ident
 import qualified MicroHs.IdentMap as M
 import qualified MicroHs.IntMap as IM
+import MicroHs.MRnf
 import MicroHs.State
 import MicroHs.SymTab
 import Debug.Trace
@@ -40,6 +41,29 @@ tcTrace msg = do
   seq s' (put s')
 
 -----------------------------------------------
+
+data TypeExport = TypeExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
+  [ValueExport]   -- associated values, i.e., constructors, selectors, methods
+--  deriving (Show)
+
+--instance Show TypeExport where show (TypeExport i _ vs) = showIdent i ++ show vs
+
+instance MRnf TypeExport where
+  mrnf (TypeExport a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
+data ValueExport = ValueExport
+  Ident           -- unqualified name
+  Entry           -- symbol table entry
+--  deriving (Show)
+
+--instance Show ValueExport where show (ValueExport i _) = showIdent i
+
+instance MRnf ValueExport where
+  mrnf (ValueExport a b) = mrnf a `seq` mrnf b
+
+-----------------------------------------------
 -- Tables
 
 type ValueTable = SymTab           -- type of value identifiers, used during type checking values
@@ -48,7 +72,7 @@ type KindTable  = SymTab           -- sort of kind  identifiers, used during sor
 type SynTable   = M.Map EType      -- body of type synonyms
 type DataTable  = M.Map EDef       -- data/newtype definitions (only used for standalone deriving)
 type FixTable   = M.Map Fixity     -- precedence and associativity of operators
-type AssocTable = M.Map [Ident]    -- maps a type identifier to its associated constructors/selectors/methods
+type AssocTable = M.Map [ValueExport] -- maps a type identifier to its associated constructors/selectors/methods
 type ClassTable = M.Map ClassInfo  -- maps a class identifier to its associated information
 type InstTable  = M.Map InstInfo   -- indexed by class name
 type MetaTable  = [(Ident, EConstraint)]  -- instances with unification variables
@@ -72,19 +96,25 @@ data InstInfo = InstInfo
        [IFunDep]
 --  deriving (Show)
 
+instance MRnf InstInfo where
+  mrnf (InstInfo a b c) = mrnf a `seq` mrnf b `seq` mrnf c
+
 -- This is the dictionary expression, instance variables, instance context,
 -- and instance.
 type InstDictC  = (Expr, [IdKind], [EConstraint], EConstraint, [IFunDep])
 -- This is the dictionary expression, instance context, and types.
 -- An instance (C T1 ... Tn) has the type list [T1,...,Tn]
--- The types and constraint have their type variables normalized to EUVar (-1), EUVar (-2), etc
-type InstDict   = (Expr, [EConstraint], [EType])
+-- The types and constraint can be instantiated by providing a starting TRef
+type InstDict   = (Expr, TRef -> ([EConstraint], [EType]))
 
 -- All known type equalities, contains the transitive&commutative closure.
 type TypeEqTable = [(EType, EType)]
 
 data ClassInfo = ClassInfo [IdKind] [EConstraint] EKind [Ident] [IFunDep]  -- class tyvars, superclasses, class kind, methods, fundeps
 type IFunDep = ([Bool], [Bool])           -- the length of the lists is the number of type variables
+
+instance MRnf ClassInfo where
+  mrnf (ClassInfo a b c d e) = mrnf a `seq` mrnf b `seq` mrnf c `seq` mrnf d `seq` mrnf e
 
 -----------------------------------------------
 -- TCState
@@ -224,7 +254,6 @@ addConstraints []  t = t
 addConstraints cs  t = tupleConstraints cs `tImplies` t
 
 tupleConstraints :: [EConstraint] -> EConstraint
-tupleConstraints []  = error "tupleConstraints"
 tupleConstraints [c] = c
 tupleConstraints cs  = tApps (tupleConstr noSLoc (length cs)) cs
 
@@ -253,3 +282,7 @@ tArrow a r = tApp (tApp (tConI builtinLoc "Primitives.->") a) r
 
 tImplies :: EType -> EType -> EType
 tImplies a r = tApp (tApp (tConI builtinLoc "Primitives.=>") a) r
+
+etImplies :: EType -> EType -> EType
+etImplies (EVar i) t | i == tupleConstr noSLoc 0 = t
+etImplies a t = tImplies a t

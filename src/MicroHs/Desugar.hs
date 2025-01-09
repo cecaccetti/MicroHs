@@ -47,6 +47,11 @@ dsDef flags mn adef =
       in  zipWith dsConstr [0::Int ..] cs
     Newtype _ (Constr _ _ c _) _ -> [ (qualIdent mn c, Lit (LPrim "I")) ]
     Fcn f eqns -> [(f, wrapTick (useTicks flags) f $ dsEqns (getSLoc f) eqns)]
+    PatBind p e ->
+      case patVarsQ p of
+        [] -> []    -- no bound variable, just throw it away
+        -- Create a unique varible by adding a "$g" suffix to one of the bound variables.
+        v : _ -> dsPatBind (addIdentSuffix v "$g") p e
     ForImp ie i t -> [(i, if isIO t then frgn else App perf frgn)]
       where frgn = Lit $ LForImp (fromMaybe (unIdent (unQualIdent i)) ie) cty
             cty = CType t
@@ -57,7 +62,7 @@ dsDef flags mn adef =
     Class ctx (c, _) _ bs ->
       let f = mkIdent "$f"
           meths :: [Ident]
-          meths = [ qualIdent mn i | (BSign is _) <- bs, i <- is ]
+          meths = [ qualIdent mn i | (Sign is _) <- bs, i <- is ]
           supers :: [Ident]
           supers = [ qualIdent mn $ mkSuperSel c i | i <- [1 .. length ctx] ]
           xs = [ mkIdent ("$x" ++ show j) | j <- [ 1 .. length ctx + length meths ] ]
@@ -85,28 +90,34 @@ oneAlt e = EAlts [([], e)] []
 dsBind :: Ident -> EBind -> [LDef]
 dsBind v abind =
   case abind of
-    BFcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
-    BPat p e ->
-      let
-        de = (v, dsExpr e)
-        ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVars p ]
-      in  de : ds
-    BSign _ _ -> []
-    BDfltSign _ _ -> []
+    Fcn f eqns -> [(f, dsEqns (getSLoc f) eqns)]
+    PatBind p e -> dsPatBind v p e
+    _ -> []
+
+dsPatBind :: Ident -> EPat -> Expr -> [LDef]
+dsPatBind v p e =
+  let de = (v, dsExpr e)
+      ds = [ (i, dsExpr (ECase (EVar v) [(p, oneAlt $ EVar i)])) | i <- patVarsQ p ]
+  in  de : ds
+
+-- patVars does not work wth qualified bound variable names,
+-- but that's what we get for a top level PatBind
+patVarsQ :: EPat -> [Ident]
+patVarsQ = filter (\ i -> not (isDummyIdent i) && not (isConIdent $ unQualIdent i)) . allVarsExpr
 
 dsEqns :: SLoc -> [Eqn] -> Exp
 dsEqns loc eqns =
   case eqns of
     Eqn aps _ : _ ->
       let
-        vs = allVarsBind $ BFcn (mkIdent "") eqns
+        vs = allVarsBind $ Fcn (mkIdent "") eqns
         xs = take (length aps) $ newVars "$q" vs
         mkArm (Eqn ps alts) =
           let ps' = map dsPat ps
           in  (ps', dsAlts alts)
         ex = dsCaseExp loc (vs ++ xs) (map Var xs) (map mkArm eqns)
       in foldr Lam ex xs
-    _ -> impossible
+    _ -> eMatchErr loc
 
 dsAlts :: EAlts -> (Exp -> Exp)
 dsAlts (EAlts alts bs) = dsBinds bs . dsAltsL alts
@@ -129,7 +140,7 @@ dsAlt dflt (SLet bs   : ss) rhs = ELet bs (dsAlt dflt ss rhs)
 
 dsBinds :: [EBind] -> Exp -> Exp
 dsBinds [] ret = ret
-dsBinds ads@(BPat (ELazy False p) e : ds) ret =
+dsBinds ads@(PatBind (ELazy False p) e : ds) ret =
   -- Turn a strict let/where into a case.
   -- XXX This does no reordering of bindings.
   let rest = dsBinds ds ret
@@ -208,7 +219,7 @@ dsExpr aexpr =
     EApp (EApp (EVar app) (EListish (LCompr e stmts))) l | app == mkIdent "Data.List_Type.++" ->
       dsExpr $ dsCompr e stmts l
     EApp f a -> App (dsExpr f) (dsExpr a)
-    ELam qs -> dsEqns (getSLoc aexpr) qs
+    ELam l qs -> dsEqns l qs
     ELit l (LExn s) -> Var (mkIdentSLoc l s)
     ELit _ (LChar c) -> Lit (LInt (ord c))
     ELit _ (LInteger i) -> encodeInteger i
@@ -234,9 +245,11 @@ dsCompr :: Expr -> [EStmt] -> Expr -> Expr
 dsCompr e [] l = EApp (EApp consCon e) l
 dsCompr e (SThen c : ss) l = EIf c (dsCompr e ss l) l
 dsCompr e (SLet ds : ss) l = ELet ds (dsCompr e ss l)
+-- Special case for the idiom [ ... | ..., p <- [x], ... ].  This is a little more efficient.
+dsCompr e (SBind p (EListish (LList [x])) : ss) l = ECase x [(p, oneAlt $ dsCompr e ss l), (EVar dummyIdent, oneAlt l)]
 dsCompr e xss@(SBind p g : ss) l = ELet [hdef] (EApp eh g)
   where
-    hdef = BFcn h [eqn1, eqn2, eqn3]
+    hdef = Fcn h [eqn1, eqn2, eqn3]
     eqn1 = eEqn [nilCon] l
     eqn2 = eEqn [EApp (EApp consCon p) vs] (dsCompr e ss (EApp eh vs))
     eqn3 = eEqn [EApp (EApp consCon u) vs]               (EApp eh vs)
@@ -364,7 +377,7 @@ dsLazy (ps, rhs) =
           ELazy False p'          -> lazy (n, bs, is) p'        -- ignore ! on non-variables for now
           ELazy True  p'          -> ((n+1, b:bs, is), EVar v)
             where v = mkIdent ("~" ++ show n)
-                  b = BPat p' (EVar v)
+                  b = PatBind p' (EVar v)
           EVar _                  -> (s, ap)
           EViewPat e p            -> (s', EViewPat e p') where (s', p')  = lazy s p
           ECon _                  -> (s, ap)
@@ -375,6 +388,15 @@ dsLazy (ps, rhs) =
 
 eSeq :: Exp -> Exp -> Exp
 eSeq e1 e2 = App (App (Lit (LPrim "seq")) e1) e2
+
+-- XXX quadratic.  but only used for short lists
+groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
+groupEq eq axs =
+  case axs of
+    [] -> []
+    x:xs ->
+      case partition (eq x) xs of
+        (es, ns) -> (x:es) : groupEq eq ns
 
 -- Desugar a pattern matrix.
 -- The input is a (usually identifier) vector e1, ..., en
@@ -516,21 +538,12 @@ pArgs apat =
     ELit _ _ -> []
     _ -> impossible
 
--- XXX quadratic
-groupEq :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
-groupEq eq axs =
-  case axs of
-    [] -> []
-    x:xs ->
-      case partition (eq x) xs of
-        (es, ns) -> (x:es) : groupEq eq ns
-
-getDups :: forall a . (a -> a -> Bool) -> [a] -> [[a]]
-getDups eq = filter ((> 1) . length) . groupEq eq
+getDups :: (Ord a) => [a] -> [[a]]
+getDups = filter ((> 1) . length) . groupSort
 
 checkDup :: [LDef] -> [LDef]
 checkDup ds =
-  case getDups (==) (filter (/= dummyIdent) $ map fst ds) of
+  case getDups $ filter (/= dummyIdent) $ map fst ds of
     [] -> ds
     (i1:_i2:_) : _ ->
       errorMessage (getSLoc i1) $ "duplicate definition " ++ showIdent i1

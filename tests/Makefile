@@ -78,6 +78,12 @@ test:
 	$(TMHS) MString    && $(EVAL) > MString.out    && diff MString.ref MString.out
 	$(TMHS) OrPat      && $(EVAL) > OrPat.out      && diff OrPat.ref OrPat.out
 	$(TMHS) PartRed    && $(EVAL) > PartRed.out    && diff PartRed.ref PartRed.out
+	$(TMHS) PatSyn     && $(EVAL) > PatSyn.out     && diff PatSyn.ref PatSyn.out
+	$(TMHS) Coerce     && $(EVAL) > Coerce.out     && diff Coerce.ref Coerce.out
+	$(TMHS) PatBind    && $(EVAL) > PatBind.out    && diff PatBind.ref PatBind.out
+	$(TMHS) EmptyCase  && $(EVAL) > EmptyCase.out
+	$(TMHS) NumUnder   && $(EVAL) > NumUnder.out   && diff NumUnder.ref NumUnder.out
+	$(TMHS) LocalFix   && $(EVAL) > LocalFix.out   && diff LocalFix.ref LocalFix.out
 
 errtest:
 	sh errtester.sh $(MHS) < errmsg.test

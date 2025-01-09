@@ -1,7 +1,7 @@
 -- Copyright 2023 Lennart Augustsson
 -- See LICENSE file for full license.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-unused-do-bind #-}
-module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords) where
+module MicroHs.Parse(P, pTop, pTopModule, parseDie, parse, pExprTop, keywords, dotDotIdent) where
 import Prelude(); import MHSPrelude
 import Control.Applicative
 import Control.Monad
@@ -98,13 +98,12 @@ pUIdent =
 pUIdentSym :: P Ident
 pUIdentSym = pUIdent <|< pParens pUSymOper
 
--- Special "identifiers": () [] (,) ...
+-- Special "identifiers": [] (,) ...
 pUIdentSpecial :: P Ident
 pUIdentSpecial = do
   loc <- getSLoc
   let
     mk = mkIdentSLoc loc
-  
   (mk . map (const ',') <$> (pSpec '(' *> esome (pSpec ',') <* pSpec ')'))
     <|< (mk "[]" <$ (pSpec '[' *> pSpec ']'))  -- Allow [] as a constructor name
 
@@ -254,14 +253,12 @@ pString = satisfyM "string" is
 pExportItem :: P ExportItem
 pExportItem =
       ExpModule   <$> (pKeyword "module" *> pUQIdent)
-  <|< expType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+  <|< ExpTypeSome <$> pUQIdentSym <*> pParens pConList
   <|< ExpTypeSome <$> pUQIdentSym <*> pure []
   <|< ExpValue    <$> pLQIdentSym
   <|< ExpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
   <|< ExpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
   <|< ExpDefault  <$> (pKeyword "default" *> pUQIdentSym)
-  where expType i Nothing   = ExpTypeAll  i
-        expType i (Just is) = ExpTypeSome i is
 
 pKeyword :: String -> P ()
 pKeyword kw = () <$ satisfy kw is
@@ -304,30 +301,23 @@ pBlock p = pBraces body
 
 pDef :: P EDef
 pDef =
-      uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
+      pBind'      -- Fcn, Sign, PatBind, Infix
+  <|< uncurry Data <$> (pKeyword "data"     *> pData) <*> pDeriving
   <|< Newtype      <$> (pKeyword "newtype"  *> pLHS) <*> (pSpec '=' *> (Constr [] [] <$> pUIdentSym <*> pField)) <*> pDeriving
   <|< Type         <$> (pKeyword "type"     *> pLHS) <*> (pSpec '=' *> pType)
-  <|< uncurry Fcn  <$> pEqns
-  <|< Sign         <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Import       <$> (pKeyword "import"   *> pImportSpec)
   <|< ForImp       <$> (pKeyword "foreign"  *> pKeyword "import" *> (pKeyword "ccall" <|> pKeyword "capi")
                         *> eoptional (pKeyword "unsafe") *> eoptional pString) <*> pLIdent <*> (dcolon *> pType)
-  <|< Infix        <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
   <|< Class        <$> (pKeyword "class"    *> pContext) <*> pLHS <*> pFunDeps     <*> pWhere pClsBind
   <|< Instance     <$> (pKeyword "instance" *> pType) <*> pWhere pInstBind
   <|< Default      <$> (pKeyword "default"  *> eoptional clsSym) <*> pParens (esepBy pType (pSpec ','))
   <|< KindSign     <$> (pKeyword "type"     *> pTypeIdentSym) <*> (dcolon *> pKind)
   <|< mkPattern    <$> (pKeyword "pattern"  *> pPatSyn)
-  <|< PatternSign  <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< Sign         <$> (pKeyword "pattern"  *> (esepBy1 pUIdentSym (pSpec ',')) <* dcolon) <*> pType
   <|< Deriving     <$> (pKeyword "deriving" *> pKeyword "instance" *> pType)
   <|< noop         <$  (pKeyword "type"     <* pKeyword "role" <* pTypeIdentSym <*
                                                (pKeyword "nominal" <|> pKeyword "phantom" <|> pKeyword "representational"))
   where
-    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
-    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
-    dig _ = Nothing
-    pPrec = satisfyM "digit" dig
-
     pFunDeps = (pSpec '|' *> esepBy1 pFunDep (pSpec ',')) <|< pure []
     pFunDep = (,) <$> esome pLIdent <*> (pSRArrow *> esome pLIdent)
     pField = guardM pFields ((== 1) . either length length)
@@ -348,7 +338,7 @@ pPatSyn = do
    ) <|> (
     do pSymbol "<-"
        p <- pPat
-       meqns <- optional (pKeyword "where" *> pBraces (pEqns' (\ n _ -> i == n)))
+       meqns <- optional (pKeyword "where" *> pBraces (pEqnsU i))
        pure (lhs, p, fmap snd meqns)
    )
 
@@ -410,7 +400,7 @@ pContext = (pCtx <* pDRArrow) <|< pure []
   where
     pCtx =     ((:[]) <$> pTypeApp)
            <|> (eq <$> pTypeArg <*> pTilde <*> pTypeArg)   -- A hack to allow   a~b => ...
-    eq t1 i t2 = [eApp2 (EVar i) t1 t2]
+    eq t1 i t2 = [eAppI2 i t1 t2]
     pTilde = do i <- pQSymOper; guard (i == mkIdent "~"); return i
 
 pDRArrow :: P ()
@@ -465,16 +455,20 @@ pImportSpec =
 
 pImportItem :: P ImportItem
 pImportItem =
-      impType     <$> pUQIdentSym <*> (pSpec '(' *> pConList <* pSpec ')')
+      impType     <$> pUQIdentSym <*> pParens pConList
   <|< ImpTypeSome <$> pUQIdentSym <*> pure []
   <|< ImpValue    <$> pLQIdentSym
-  where impType i Nothing   = ImpTypeAll  i
-        impType i (Just is) = ImpTypeSome i is
+  <|< ImpValue    <$> (pKeyword "pattern" *> pUQIdentSym)
+  <|< ImpTypeSome <$> (pKeyword "type" *> pLQIdentSym) <*> pure []
+  where impType i [d] | d == dotDotIdent = ImpTypeAll  i
+        impType i is                     = ImpTypeSome i is
 
-pConList :: P (Maybe [Ident])
-pConList =
-      (Nothing <$ pSymbol "..")
-  <|< (Just <$> esepBy (pQIdent <|< pUIdentSpecial <|< pParens pSymOper) (pSpec ','))
+pConList :: P [Ident]
+pConList = esepBy (pDotDot <|< pQIdent <|< pUIdentSpecial <|< pParens pSymOper) (pSpec ',')
+  where pDotDot = dotDotIdent <$ pSymbol ".."
+
+dotDotIdent :: Ident
+dotDotIdent = mkIdent ".."
 
 --------
 -- Types
@@ -542,7 +536,7 @@ pAPat =
   <|< pLit
   <|< (eTuple <$> (pSpec '(' *> esepBy pPat (pSpec ',') <* pSpec ')'))
   <|< (EListish . LList <$> (pSpec '[' *> esepBy1 pPat (pSpec ',') <* pSpec ']'))
-  <|< (EViewPat <$> (pSpec '(' *> pAExpr) <*> (pSRArrow *> pAPat <* pSpec ')'))
+  <|< (EViewPat <$> (pSpec '(' *> pExpr) <*> (pSRArrow *> pPat <* pSpec ')'))
   <|< (ELazy True  <$> (pSpec '~' *> pAPat))
   <|< (ELazy False <$> (pSpec '!' *> pAPat))
   <|< (EOr <$> (pSpec '(' *> esepBy1 pPat (pSpec ';') <* pSpec ')'))  -- if there is a single pattern it will be matched by the tuple case
@@ -551,6 +545,8 @@ pAPat =
 
 pPat :: P EPat
 pPat = pPatOp
+  -- This is where view patterns belong, but it's too slow
+  --  <|> (EViewPat <$> pExpr <*> (pSRArrow *> pPatApp))
 
 pPatOp :: P EPat
 pPatOp = pOperators pUOper pPatArg
@@ -570,37 +566,44 @@ pPatNotVar = guardM pPat isPConApp
 
 -------------
 
+-- Regular function definition
 pEqns :: P (Ident, [Eqn])
-pEqns = pEqns' (\ _ _ -> True)
+pEqns = pEqns' pLIdentSym pLOper (\ _ _ -> True)
+  where pLOper = guardM pOper (not . isConIdent)
 
-pEqns' :: (Ident -> Int -> Bool) -> P (Ident, [Eqn])
-pEqns' pfst = do
-  (name, eqn@(Eqn ps alts)) <- pEqn pfst
+-- Pattern synonym function; must have name i.
+pEqnsU :: Ident -> P (Ident, [Eqn])
+pEqnsU i = pEqns' pUIdentSym pUOper (\ n _ -> i == n)
+
+-- pEqns' is used to parse oridinary function definitions as well
+-- as the 'constructor' of pattern synonyms, which has an upper case identifier.
+pEqns' :: P Ident -> P Ident -> (Ident -> Int -> Bool) -> P (Ident, [Eqn])
+pEqns' ident oper test = do
+  (name, eqn@(Eqn ps alts)) <- pEqn ident oper test
   case (ps, alts) of
     ([], EAlts [_] []) ->
       -- don't collect equations when of the form 'i = e'
       pure (name, [eqn])
     _ -> do
-      neqns <- emany (pSpec ';' *> pEqn (\ n l -> n == name && l == length ps))
+      neqns <- emany (pSpec ';' *> pEqn ident oper (\ n l -> n == name && l == length ps))
       pure (name, eqn : map snd neqns)
 
-pEqn :: (Ident -> Int -> Bool) -> P (Ident, Eqn)
-pEqn test = do
-  (name, pats) <- pEqnLHS
+pEqn :: P Ident -> P Ident -> (Ident -> Int -> Bool) -> P (Ident, Eqn)
+pEqn ident oper test = do
+  (name, pats) <- pEqnLHS ident oper
   alts <- pAlts (pSpec '=')
   guard (test name (length pats))
   pure (name, Eqn pats alts)
 
-pEqnLHS :: P (Ident, [EPat])
-pEqnLHS =
-  ((,) <$> pLIdentSym <*> emany pAPat)
+pEqnLHS :: P Ident -> P Ident -> P (Ident, [EPat])
+pEqnLHS ident oper =
+  ((,) <$> ident <*> emany pAPat)
   <|>   -- XXX this <|> causes a slowdown, but is necessary
   pOpLHS
   <|<
   ((\ (i, ps1) ps2 -> (i, ps1 ++ ps2)) <$> pParens pOpLHS <*> emany pAPat)
   where
-    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> pLOper <*> pPatApp
-    pLOper = guardM pOper (not . isConIdent)
+    pOpLHS = (\ p1 i p2 -> (i, [p1,p2])) <$> pPatApp <*> oper <*> pPatApp
 
 pAlts :: P () -> P EAlts
 pAlts sep = do
@@ -646,14 +649,15 @@ pExprApp = do
   pure $ foldl EApp f as
 
 pLam :: P Expr
-pLam =
-    pSpec '\\' *>
-      (    eLam <$> esome pAPat <*> (pSRArrow *> pExpr)
-       <|< eLamCase <$> (pKeyword "case" *> pBlock pCaseArm)
-      )
+pLam = do
+  loc <- getSLoc
+  pSpec '\\' *>
+    (    eLamWithSLoc loc <$> esome pAPat <*> (pSRArrow *> pExpr)
+     <|< eLamCase loc <$> (pKeyword "case" *> pBlock pCaseArm)
+    )
 
-eLamCase :: [ECaseArm] -> Expr
-eLamCase as = ELam [ Eqn [p] a | (p, a) <- as ]
+eLamCase :: SLoc -> [ECaseArm] -> Expr
+eLamCase loc as = ELam loc [ Eqn [p] a | (p, a) <- as ]
 
 pCase :: P Expr
 pCase = ECase <$> (pKeyword "case" *> pExpr) <*> (pKeyword "of" *> pBlock pCaseArm)
@@ -726,6 +730,7 @@ pAExpr' = (
   <|< (ESectR <$> (pSpec '(' *> pOperCommaNoMinus) <*> (pExprOp <* pSpec ')'))
   <|< (ESelect <$> (pSpec '(' *> esome pSelect <* pSpec ')'))
   <|< (ELit noSLoc . LPrim <$> (pKeyword "primitive" *> pString))
+  <|< (ETypeArg <$> (pSpec '@' *> pAType))
   )
   -- This weirdly slows down parsing
   -- <?> "aexpr"
@@ -768,22 +773,37 @@ pOperators' oper one = eOper <$> one <*> emany ((,) <$> oper <*> one)
 -------------
 -- Bindings
 
+-- Bindings allowed in a let
 pBind :: P EBind
-pBind = 
-      BPat <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
-                           <|< (EMultiIf <$> pAlts (pSpec '=')))
-  <|< pClsBind
+pBind =
+      pBind'
+  <|< PatBind     <$> pPatNotVar <*> ((pSpec '=' *> pExpr)
+                                      <|<
+                                      (EMultiIf <$> pAlts (pSpec '=')))
 
+-- Bindings allowed in top level, let, class
+pBind' :: P EBind
+pBind' =
+      uncurry Fcn <$> pEqns
+  <|< Sign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
+  <|< Infix       <$> ((,) <$> pAssoc <*> pPrec) <*> esepBy1 pTypeOper (pSpec ',')
+  where
+    pAssoc = (AssocLeft <$ pKeyword "infixl") <|< (AssocRight <$ pKeyword "infixr") <|< (AssocNone <$ pKeyword "infix")
+    dig (TInt _ ii) | 0 <= i && i <= 9 = Just i  where i = fromInteger ii
+    dig _ = Nothing
+    pPrec = satisfyM "digit" dig <|< pure 9
+
+-- Bindings allowed in a class definition
 pClsBind :: P EBind
-pClsBind = 
-      uncurry BFcn <$> pEqns
-  <|< BSign        <$> ((esepBy1 pLIdentSym (pSpec ',')) <* dcolon) <*> pType
-  <|< BDfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
+pClsBind =
+      pBind'
+  <|< DfltSign    <$> (pKeyword "default" *> pLIdentSym <* dcolon) <*> pType
 
+-- Bindings allowed in an instance definition
 pInstBind :: P EBind
 pInstBind = 
-      uncurry BFcn <$> pEqns
--- no InstanceSig yet  <|< BSign        <$> (pLIdentSym <* dcolon) <*> pType
+      uncurry Fcn <$> pEqns
+-- no InstanceSig yet  <|< Sign        <$> (pLIdentSym <* dcolon) <*> pType
 
 -------------
 

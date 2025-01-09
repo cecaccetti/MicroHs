@@ -205,7 +205,7 @@ enum node_tag { T_FREE, T_IND, T_AP, T_INT, T_DBL, T_PTR, T_FUNPTR, T_FORPTR, T_
                 T_NEWCASTRINGLEN, T_PEEKCASTRING, T_PEEKCASTRINGLEN,
                 T_BSAPPEND, T_BSAPPEND3, T_BSEQ, T_BSNE, T_BSLT, T_BSLE, T_BSGT, T_BSGE, T_BSCMP,
                 T_BSPACK, T_BSUNPACK, T_BSLENGTH, T_BSSUBSTR,
-                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,
+                T_BSFROMUTF8, T_BSTOUTF8, T_BSHEADUTF8,  T_BSTAILUTF8,
                 T_BSAPPENDDOT,
                 T_LAST_TAG,
 };
@@ -736,6 +736,7 @@ struct {
   { "fromUTF8", T_BSFROMUTF8 },
   { "toUTF8", T_BSTOUTF8 },
   { "headUTF8", T_BSHEADUTF8 },
+  { "tailUTF8", T_BSTAILUTF8 },
   /* IO primops */
   { "IO.>>=", T_IO_BIND },
   { "IO.>>", T_IO_THEN },
@@ -1705,6 +1706,8 @@ parse(BFILE *f)
     case '\n':
       continue;
     }
+    if (num_free < 3)
+      ERR("out of heap reading code");
     GCCHECK(1);
     switch(c) {
     case '@':
@@ -2227,6 +2230,7 @@ printrec(BFILE *f, struct print_bits *pb, NODEPTR n, int prefix)
   case T_BSFROMUTF8: putsb("fromUTF8", f); break;
   case T_BSTOUTF8: putsb("toUTF8", f); break;
   case T_BSHEADUTF8: putsb("headUTF8", f); break;
+  case T_BSTAILUTF8: putsb("tailUTF8", f); break;
   case T_TICK:
     putb('!', f);
     print_string(f, tick_table[GETVALUE(n)].tick_name);
@@ -3297,6 +3301,22 @@ evali(NODEPTR an)
     SETINT(n, headutf8(BSTR(x), (void**)0));
     RET;
 
+  case T_BSTAILUTF8:
+    CHECK(1);
+    x = evali(ARG(TOP(0)));
+    if (GETTAG(x) != T_BSTR) ERR("TAILUTF8");
+    POP(1);
+    n = TOP(-1);
+    { xfp = FORPTR(x);                              /* foreign pointer to the string */
+      void *out;
+      (void)headutf8(xfp->payload, &out);           /* skip one UTF8 character */
+      xi = (char*)out - (char*)xfp->payload.string; /* offset */
+      yi = xfp->payload.size - xi;                  /* remaining length */
+      SETTAG(n, T_BSTR);
+      FORPTR(n) = bssubstr(xfp, xi, yi);            /* make a substring */
+    }
+    RET;
+
   case T_BSFROMUTF8:
     if (doing_rnf) RET;
     CHECK(1);
@@ -3823,6 +3843,7 @@ execio(NODEPTR *np)
     case T_IO_DESERIALIZE:
       CHECKIO(1);
       ptr = (struct BFILE*)evalptr(ARG(TOP(1)));
+      gc();                     /* make sure we have room.  GC during parse is dodgy. */
       n = parse_top(ptr);
       RETIO(n);
 #endif
