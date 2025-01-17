@@ -21,9 +21,8 @@ isOdd' 0 = False
 isOdd' i = isEven' (i - 1)
 
 main :: Int
-main = --let a = 3 + 3
-	let a = sum (map (+ 1) [1 ..6])
-  	   in a + a
+main = let a = sum (map (+ 1) [1 ..6])
+  	   in a
 
 --let a = sum (map (+ 1) [1 ..6 ])
 --	in a + a

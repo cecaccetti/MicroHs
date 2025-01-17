@@ -92,6 +92,7 @@ executable mhs
                        MicroHs.TypeCheck
                        MicroHs.TargetConfig
                        MicroHs.GenRom
+                       MicroHs.MRnf
                        Text.ParserComb
                        Text.PrettyPrint.HughesPJLite
                        System.Console.SimpleReadline

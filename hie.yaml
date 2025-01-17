@@ -1,144 +1,147 @@
 cradle:
   cabal:
-    - path: "ghc/MicroHs/Main.hs"
+    - path: "mhs/MicroHs/Main.hs"
       component: "MicroHs:exe:mhs"
 
     - path: "src/MicroHs/Main.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Abstract.hs"
+    - path: "mhs/MicroHs/Abstract.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Builtin.hs"
+    - path: "mhs/MicroHs/Builtin.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Compile.hs"
+    - path: "mhs/MicroHs/Compile.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/CompileCache.hs"
+    - path: "mhs/MicroHs/CompileCache.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Deriving.hs"
+    - path: "mhs/MicroHs/Deriving.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Desugar.hs"
+    - path: "mhs/MicroHs/Desugar.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/EncodeData.hs"
+    - path: "mhs/MicroHs/EncodeData.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Exp.hs"
+    - path: "mhs/MicroHs/Exp.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/ExpPrint.hs"
+    - path: "mhs/MicroHs/ExpPrint.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Expr.hs"
+    - path: "mhs/MicroHs/Expr.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/FFI.hs"
+    - path: "mhs/MicroHs/FFI.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Flags.hs"
+    - path: "mhs/MicroHs/Flags.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Fixity.hs"
+    - path: "mhs/MicroHs/Fixity.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Graph.hs"
+    - path: "mhs/MicroHs/Graph.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Ident.hs"
+    - path: "mhs/MicroHs/Ident.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/IdentMap.hs"
+    - path: "mhs/MicroHs/IdentMap.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/IntMap.hs"
+    - path: "mhs/MicroHs/IntMap.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/IntSet.hs"
+    - path: "mhs/MicroHs/IntSet.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Instances.hs"
+    - path: "mhs/MicroHs/Instances.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Interactive.hs"
+    - path: "mhs/MicroHs/Interactive.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Lex.hs"
+    - path: "mhs/MicroHs/Lex.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/List.hs"
+    - path: "mhs/MicroHs/List.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/MakeCArray.hs"
+    - path: "mhs/MicroHs/MakeCArray.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Package.hs"
+    - path: "mhs/MicroHs/Package.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Parse.hs"
+    - path: "mhs/MicroHs/Parse.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/State.hs"
+    - path: "mhs/MicroHs/State.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/StateIO.hs"
+    - path: "mhs/MicroHs/StateIO.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/SymTab.hs"
+    - path: "mhs/MicroHs/SymTab.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/TCMonad.hs"
+    - path: "mhs/MicroHs/TCMonad.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/Translate.hs"
+    - path: "mhs/MicroHs/Translate.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/TypeCheck.hs"
+    - path: "mhs/MicroHs/TypeCheck.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/TargetConfig.hs"
+    - path: "mhs/MicroHs/TargetConfig.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MicroHs/GenRom.hs"
+    - path: "mhs/MicroHs/GenRom.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/Text/ParserComb.hs"
+    - path: "mhs/MicroHs/MRnf.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/Text/PrettyPrint/HughesPJLite.hs"
+    - path: "mhs/Text/ParserComb.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/System/Console/SimpleReadline.hs"
+    - path: "mhs/Text/PrettyPrint/HughesPJLite.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/Data/Double.hs"
+    - path: "mhs/System/Console/SimpleReadline.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/Data/Integer.hs"
+    - path: "mhs/Data/Double.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/Compat.hs"
+    - path: "mhs/Data/Integer.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/PrimTable.hs"
+    - path: "mhs/Compat.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/MHSPrelude.hs"
+    - path: "mhs/PrimTable.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/System/IO/MD5.hs"
+    - path: "mhs/MHSPrelude.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/System/IO/Serialize.hs"
+    - path: "mhs/System/IO/MD5.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/System/IO/TimeMilli.hs"
+    - path: "mhs/System/IO/Serialize.hs"
       component: "MicroHs:exe:mhs"
 
-    - path: "ghc/System/Compress.hs"
+    - path: "mhs/System/IO/TimeMilli.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "mhs/System/Compress.hs"
       component: "MicroHs:exe:mhs"
 
     - path: "src/MicroHs/Abstract.hs"
@@ -238,6 +241,9 @@ cradle:
       component: "MicroHs:exe:mhs"
 
     - path: "src/MicroHs/GenRom.hs"
+      component: "MicroHs:exe:mhs"
+
+    - path: "src/MicroHs/MRnf.hs"
       component: "MicroHs:exe:mhs"
 
     - path: "src/Text/ParserComb.hs"

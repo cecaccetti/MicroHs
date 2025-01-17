@@ -99,10 +99,38 @@ listPrint xs = "List(" ++ inner ++ ")"
   where
     inner = concat $ zipWith (\x y -> show x ++ y) xs (replicate (length xs - 1) ", " ++ [""])
 
+killDead :: (Ident, [LDef]) -> [LDef]
+killDead (mainName, ds) =
+  let
+    dMap = M.fromList ds
+    -- Shake the tree bottom-up, serializing nodes as we see them.
+    -- This is much faster than (say) computing the sccs and walking that.
+    dfs :: Ident -> State (Int, M.Map Exp, [LDef]) ()
+    dfs n = do
+      (i, seen, r) <- get
+      case M.lookup n seen of
+        Just _ -> return ()
+        Nothing -> do
+          -- Put placeholder for n in seen.
+          put (i, M.insert n (Var n) seen, r)
+          -- Walk n's children
+          let e = findIdentIn n dMap
+          mapM_ dfs $ freeVars e
+          -- Now that n's children are done, compute its actual entry.
+          (i', seen', r') <- get
+          put (i'+1, M.insert n (ref i') seen', (n, e) : r')
+    (_,(_, _, res)) = runState (dfs mainName) (0, M.empty, [])
+    
+    ref i = Var $ mkIdent $ "FUN" ++ show i
+    findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
+                      M.lookup n m
+  in res
+
 genRom :: (Ident, [LDef]) -> String
 genRom (mainName, ldefs) =
   let
-    ds = inlineSingle ldefs
+    ds = killDead (mainName, inlineSingle ldefs)
+    -- ds = inlineSingle ldefs
     dMap = M.fromList ds
     -- state: 1. fun counter; 2. app counter; 3. comb counter; 4. function map; 5. resulting string
     dfs :: Ident -> State (Int, Int, Int, M.Map Exp, String -> String) ()

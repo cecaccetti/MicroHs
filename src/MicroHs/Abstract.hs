@@ -479,32 +479,8 @@ noDuplicates :: Eq a => [a] -> Bool
 noDuplicates [] = True
 noDuplicates (x:xs) = x `notElem` xs && noDuplicates xs
 
-etaRewrite :: Exp -> Exp -- maybe this should be a fixed point function?
+etaRewrite :: Exp -> Exp 
 etaRewrite = etaApply . etaShrink
--- etaRewrite ae = 
---   case ae of
---     App f a ->
---       let
---         (c, args) = spine ae
---         isOnlyLast :: Int -> [Int] -> Bool
---         isOnlyLast x xs = last xs == x && count x xs == 1
---           where count n = length . filter (== n)
---         smallTail (At _ X) = True
---         smallTail _ = False
---         stripTail (At p X) = p
---         stripTail p = p
---       in
---         case c of
---           Sc ar p is ->
---             if ar == length args && safeToApply
---             then fromPat p is (map etaRewrite args) 
---             else if ar == length args + 1 && isOnlyLast (ar - 1) is && smallTail p && safeToApply
---             then fromPat (stripTail p) (init is) args
---             else fromSpine (c, map etaRewrite args)
---             where
---               safeToApply = noDuplicates is
---           _ -> fromSpine (c, map etaRewrite args)
---     _ -> ae
 
 etaShrink :: Exp -> Exp
 etaShrink (App e1 e2) = App (etaShrink e1) (etaShrink e2)
