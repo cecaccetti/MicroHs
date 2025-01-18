@@ -258,7 +258,7 @@ mainCompile flags mn = do
      else if outFile `hasTheExtension` ".c" then
       writeFile outFile cCode
      else if ".scala" `isSuffixOf` outFile then
-      writeFile outFile $ genRom cmdl
+      writeFile outFile $ genRom (takeWhile (/= '.') outFile) cmdl
      else do
        (fn, h) <- openTmpFile "mhsc.c"
        hPutStr h cCode

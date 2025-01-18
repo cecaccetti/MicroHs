@@ -13,13 +13,17 @@ import MicroHs.State
 
 header :: String
 header = "\
- \package mutator\n\
+ \package benchmarks\n\
  \import common.Helper._\n\
  \ \n"
 
 object :: String -> (String -> String) -> (String -> String)
 object name r =
-  (("object " ++ name ++ " {\n") ++) . r . ("\n}" ++)
+  (("object " ++ name ++ " extends Benchmark {\n") ++) . r . ("\n}" ++)
+
+defToString :: String -> (String -> String)
+defToString name =
+  ((("override def toString() = \"" ++ name) ++ "\" \n") ++)
 
 freeText :: String -> (String -> String)
 freeText t = (t ++)
@@ -126,11 +130,11 @@ killDead (mainName, ds) =
                       M.lookup n m
   in res
 
-genRom :: (Ident, [LDef]) -> String
-genRom (mainName, ldefs) =
+genRom :: String -> (Ident, [LDef]) -> String
+genRom progName (mainName, ldefs) =
   let
-    ds = killDead (mainName, inlineSingle ldefs)
-    -- ds = inlineSingle ldefs
+    -- ds = killDead (mainName, inlineSingle ldefs)
+    ds = inlineSingle ldefs
     dMap = M.fromList ds
     -- state: 1. fun counter; 2. app counter; 3. comb counter; 4. function map; 5. resulting string
     dfs :: Ident -> State (Int, Int, Int, M.Map Exp, String -> String) ()
@@ -195,7 +199,9 @@ genRom (mainName, ldefs) =
      "// Functions in this file: " ++ show funCount ++ "\n"
      ++ "// Apps in this file: " ++ show appCount ++ "\n"
      ++ "// Combinators in this file: " ++ show combCount ++ "\n"
-     ++ object "ProgramBin" (prog "prog" res) ""
+     ++ object progName (defToString progName .
+                         val "combinatorCount" (freeText (show combCount ++ "\n")) .
+                         prog "prog" res) ""
 
 atom :: Exp -> (String -> String)
 atom ae =
