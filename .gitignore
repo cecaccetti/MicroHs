@@ -27,3 +27,5 @@ dist-mcabal/
 cpphssrc/
 *-backup
 *.scala
+.metals/
+.scala-build/

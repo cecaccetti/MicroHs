@@ -158,7 +158,8 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method
+compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method (minimising combinator count)
+-- compileOpt = etaRewrite. compileExpLazy . removeSKI . opInfix -- our method (fully-laziness/self-optimising)
 -- compileOpt = removeSKI . improveT . compileExp  . opInfix -- ski from microhs
 -- compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
 
@@ -221,15 +222,8 @@ abstractSc x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
     App f a ->
-      let
-        fOld = case f of
-                 Lam y e -> abstractSc y e
-                 _ -> f
-        aOld = case a of
-                 Lam y e -> abstractSc y e
-                 _ -> a
-      in combineSc (abstractSc x f) (abstractSc x a) fOld aOld
-    Lam y e -> abstractSc x $ etaReduce $ abstractSc y e
+      combineSc (abstractSc x f) (abstractSc x a)
+    Lam y e -> abstractSc x $ argReorder x . etaRewrite $ abstractSc y e
     Lit _ -> App scK ae 
     Sc ar pt is -> -- App scK ae
       if ar < 7 -- FIXME: parameterise this (maybe allow 7??)
@@ -327,8 +321,42 @@ takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
 gotCha = Lam (mkIdent "x") (Lam (mkIdent "y") (App
                                                (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
 
-combineSc :: Exp -> Exp -> Exp -> Exp -> Exp
-combineSc a1 a2 a1Old' a2Old' =
+standardCombine :: Exp -> [Exp] -> Exp -> [Exp] -> Exp
+standardCombine (Sc ar1 p1 is1) args1 (Sc ar2 p2 is2) args2 =
+  if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 6 then -- FIXME: parameterise this
+    let
+      c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ length args1) is2)
+      redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
+    in foldl App c (args1 ++ args2)
+  else if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
+         let
+           c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [length args1])
+           redirect i = if i == ar1 - 1 then ar1 else i
+         in foldl App c (args1 ++ [etaRewrite a2Old])
+  else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5; append left
+         let
+           c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [length args1, length args1 + 1])
+           redirect i = if i == ar1 - 1 then ar1 else i
+         in foldl App c (args1 ++ [etaRewrite a2])
+  else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
+         let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
+         in foldl App c (etaRewrite a1Old : args2)
+  else if getHoles p2 <= 4 && ar2 <= 5 then -- append right
+         let
+           c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
+         in foldl App c (etaRewrite a1 : args2)
+  else
+    addSc (Sc ar1 p1 is1) args1 (Sc ar2 p2 is2) args2
+  where
+    c1 = Sc ar1 p1 is1
+    c2 = Sc ar2 p2 is2
+    a1 = fromSpine (c1, args1)
+    a2 = fromSpine (c2, args2)
+    a1Old = discardSc c1 args1
+    a2Old = discardSc c2 args2
+
+combineSc :: Exp -> Exp -> Exp
+combineSc a1 a2 =
   let
     (c1, args1) = spine a1
     (c2, args2) = spine a2
@@ -336,30 +364,7 @@ combineSc a1 a2 a1Old' a2Old' =
     case (c1, c2) of
       (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
         if a1IsUnary && a2IsUnary then -- standard combine
-          if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 6 then -- FIXME: parameterise this
-            let
-              c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ length args1) is2)
-              redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
-            in foldl App c (args1 ++ args2)
-          else if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
-            let
-              c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [length args1])
-              redirect i = if i == ar1 - 1 then ar1 else i
-            in foldl App c (args1 ++ [etaRewrite a2Old])
-          else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5; append left
-            let
-              c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [length args1, length args1 + 1])
-              redirect i = if i == ar1 - 1 then ar1 else i
-            in foldl App c (args1 ++ [etaRewrite a2])
-          else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
-            let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
-            in foldl App c (etaRewrite a1Old : args2)
-          else if getHoles p2 <= 4 && ar2 <= 5 then -- append right
-            let
-              c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
-            in foldl App c (etaRewrite a1 : args2)
-          else
-            addSc a1Old c1 args1 a2Old c2 args2
+          standardCombine c1 args1 c2 args2
         else if a1IsUnary then -- a2 is not unary
           if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
             let c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [ar1 - 1])
@@ -376,7 +381,7 @@ combineSc a1 a2 a1Old' a2Old' =
           --   let c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
           --   in foldl App c (a1 : args2)
           else
-            addSc a1Old c1 args1 a2Old c2 args2 -- consider how to compress later
+            addSc c1 args1 c2 args2 -- consider how to compress later
         else if a2IsUnary &&
                 length (filter (== length args1 + 1) is1) <= 1 && -- avoid recompute
                 getHoles p1 + length (filter (== length args1 + 1) is1) * (getHoles p2 - 1) <= 6 then -- a1 is not unary, will absorb a2
@@ -415,7 +420,7 @@ combineSc a1 a2 a1Old' a2Old' =
           --     let c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
           --     in foldl App c (a1 : args2)
           else
-            addSc a1Old c1 args1 a2Old c2 args2 -- consider how to compress later
+            addSc c1 args1 c2 args2 -- consider how to compress later
         where
           a1Old = discardSc c1 args1
           a2Old = discardSc c2 args2
@@ -436,8 +441,9 @@ combineSc a1 a2 a1Old' a2Old' =
               n : replaceWith ns v rpl
       _ -> app2 scS a1 a2
 
-addSc :: Exp -> Exp -> [Exp] -> Exp -> Exp -> [Exp] -> Exp
-addSc a1Old' c1 args1 a2Old' c2 args2 =
+-- addition strategy
+addSc :: Exp -> [Exp] -> Exp -> [Exp] -> Exp
+addSc c1 args1 c2 args2 =
   case (c1, c2) of
     (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
       let
@@ -457,7 +463,7 @@ addSc a1Old' c1 args1 a2Old' c2 args2 =
     _ -> undefined
 
 discardSc :: Exp -> [Exp] -> Exp
-discardSc c args = -- FIXME: discarding (K e) should return (e) instead of (I e)
+discardSc c args = 
   case c of
     Sc ar p is -> -- should not contain any `length args` in `is`
       let
@@ -507,12 +513,14 @@ etaApply ae =
       in
         case c of
           Sc ar p is ->
-            if ar == length args && safeToApply
-            then etaApply (fromPat p is (map etaApply args)) -- fixed-point recursion
-            else fromSpine (c, map etaApply args)
+            if ar <= length args && safeToApply 
+            then
+              etaApply (fromSpine (fromPat p is (take ar etaArgs), drop ar etaArgs)) -- fixed-point recursion
+            else fromSpine (c, etaArgs)
             where
               safeToApply = noDuplicates is
-          _ -> fromSpine (c, map etaRewrite args)
+              etaArgs = map etaApply args
+          _ -> fromSpine (c, map etaApply args)
     _ -> ae 
     
 -- this rule always assume a1 and a2 are "unary"
@@ -556,6 +564,7 @@ scCombine a1 a2 =
              else app2 scS a1Eta a2Eta
       _ -> app2 scS a1 a2
 
+-- this function is deprecated
 etaReduce :: Exp -> Exp -- only works for expressions that "need" x; not "discard" ones
 etaReduce = id -- maybe we want to make sure, eta won't populate any App
 -- etaReduce ae = 
@@ -1193,3 +1202,115 @@ unflatten e = e
 mkAp :: ExpCa -> [ExpCa] -> ExpCa
 mkAp e [] = e
 mkAp e (x:xs) = mkAp (AppCa e x) xs
+
+-- Achieve fully laziness (see John Hughes's paper: https://dl.acm.org/doi/abs/10.1145/800068.802129)
+
+compileExpLazy :: Exp -> Exp
+compileExpLazy ae =
+  case ae of
+    App f a -> App (compileExpLazy f) (compileExpLazy a)
+    Lam x a -> abstractLazy x a
+    _       -> ae
+
+-- assume abstractLazy always produces unary-form
+-- this guarentees combineLazy only needs to handle unary-form
+abstractLazy :: Ident -> Exp -> Exp
+abstractLazy x ae =
+  case ae of
+    Var y -> if x == y then scI else App scK (Var y)
+    App f a ->
+      combineLazy (abstractLazy x f) (abstractLazy x a)
+    Lam y e -> abstractLazy x $ (argReorder x) . etaRewrite $ abstractLazy y e
+    _ -> App scK ae 
+
+combineLazy :: Exp -> Exp -> Exp
+combineLazy a1 a2 =
+  let
+    (c1, args1) = spine a1
+    (c2, args2) = spine a2
+  in
+    case (c1, c2) of
+      (Sc ar1 p1 is1, Sc ar2 p2 is2) -> 
+        -- create bigger "free expression" using (S (Ka) (K b) = K (a b))
+        -- TODO: maybe some more test here to avoid "not interesting" free expressions
+        if a1NotUsed && a2NotUsed then
+          let
+            a1Old = etaRewrite $ discardSc c1 args1
+            a2Old = etaRewrite $ discardSc c2 args2
+          in
+            App scK (App a1Old a2Old)
+        else --if not a1IsUnary || not a2IsUnary then
+          combineSc a1 a2
+        -- else
+          -- standardCombine c1 args1 c2 args2
+        where
+          a1NotUsed = notElem (length args1) is1
+          a2NotUsed = notElem (length args2) is2
+          a1IsUnary = ar1 == length args1 + 1
+          a2IsUnary = ar2 == length args2 + 1
+      _ -> app2 scS a1 a2 -- try expend first? (seems never triggered)
+          
+-- for (C e1 e2 ... en), compress the same args, and reorder the args so that etaRewrite may apply
+argReorder :: Ident -> Exp -> Exp
+argReorder x ae =
+  case ae of
+    App f a ->
+      let (c, args) = spine ae in
+        case c of
+          Sc ar p is ->
+            -- 1. compress the same args (beware args might be longer than ar)
+            -- 2. reorder x to the last position
+            let
+              edibleArgs = take ar args
+              (is', args') = argCompress is edibleArgs
+              ar' = ar - (length edibleArgs - length args')
+              moveToEnd _ [] = []
+              moveToEnd x (y:ys)
+                | x == y = ys ++ [x]
+                | otherwise = y : moveToEnd x ys
+              args'' = moveToEnd (Var x) args' 
+              xIdx = findIndex (== (Var x)) args'
+              is'' = case xIdx of
+                Just i ->
+                  map (\i' -> if i' == i then length args'' - 1
+                        else if i' > i && i' <= length args'' - 1 then i' - 1
+                        else i') is'
+                Nothing -> is'
+              c' = Sc ar' p is''
+            in fromSpine (c', map (argReorder x) args'' ++ drop ar args)
+          _ -> fromSpine (c, map (argReorder x) args)
+    _ -> ae
+
+argCompress :: [Int] -> [Exp] -> ([Int], [Exp])
+argCompress is args =
+  case dupPair args of
+    (es, Just(i', i)) ->
+      argCompress (map (\idx -> if idx == i' then i else if idx > i' then idx - 1 else idx) is) es -- fixed point
+    (_, Nothing) -> (is, args)
+
+-- find a duplicated pair and remove it
+dupPair :: [Exp] -> ([Exp], Maybe (Int, Int))
+dupPair args =
+  case dup of
+    Just (i', i) -> (removeNth i' args, dup)
+    Nothing -> (args, dup)
+  where
+    dup = go args 0
+    --                          (from, to)
+    go :: [Exp] -> Int -> Maybe (Int, Int)
+    go [] _ = Nothing
+    go (e:es) i = case elemIndex e es of
+      Just i' -> Just (i' + i + 1, i)
+      Nothing -> go es (i + 1)
+    removeNth n xs = take n xs ++ drop (n + 1) xs
+
+
+
+
+
+
+
+
+
+  
+
