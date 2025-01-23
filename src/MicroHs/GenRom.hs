@@ -8,6 +8,7 @@ import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
 import MicroHs.Ident(Ident(..), showIdent, mkIdent)
 import MicroHs.State
+import MicroHs.Abstract
 
 -- generate Chisel ROM file
 
@@ -134,7 +135,7 @@ genRom :: String -> (Ident, [LDef]) -> String
 genRom progName (mainName, ldefs) =
   let
     -- ds = killDead (mainName, inlineSingle ldefs)
-    ds = inlineSingle ldefs
+    ds = finalEtaApply $ inlineSingle ldefs
     dMap = M.fromList ds
     -- state: 1. fun counter; 2. app counter; 3. comb counter; 4. function map; 5. resulting string
     dfs :: Ident -> State (Int, Int, Int, M.Map Exp, String -> String) ()
@@ -240,3 +241,6 @@ inlineSingle defs =
         
     (_, res) = runState (inlineSingle' defs) defs
   in res
+
+finalEtaApply :: [LDef] -> [LDef]
+finalEtaApply = map (\(i, def) -> (i, etaApply def))

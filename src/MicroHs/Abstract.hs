@@ -1,5 +1,6 @@
 module MicroHs.Abstract(
   compileOpt,
+  etaApply,
   -- reduce,
   ) where
 import Prelude(); import MHSPrelude
@@ -158,8 +159,9 @@ scK4 = Sc 5 X [0]
 --------------------
 
 compileOpt :: Exp -> Exp
-compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- our method (minimising combinator count)
--- compileOpt = etaRewrite. compileExpLazy . removeSKI . opInfix -- our method (fully-laziness/self-optimising)
+compileOpt = compileBase . removeSKI . opInfix -- baseline method
+-- compileOpt =  etaRewrite . compileExpSc . removeSKI . opInfix -- minimising combinator count
+-- compileOpt = etaRewrite . compileExpLazy . removeSKI . opInfix -- fully-laziness/self-optimising
 -- compileOpt = removeSKI . improveT . compileExp  . opInfix -- ski from microhs
 -- compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
 
@@ -222,7 +224,7 @@ abstractSc x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
     App f a ->
-      combineSc (abstractSc x f) (abstractSc x a)
+      combineSc (abstractSc x f) (abstractSc x a) -- put etaRewrite here will make results worse
     Lam y e -> abstractSc x $ argReorder x . etaRewrite $ abstractSc y e
     Lit _ -> App scK ae 
     Sc ar pt is -> -- App scK ae
@@ -321,27 +323,35 @@ takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
 gotCha = Lam (mkIdent "x") (Lam (mkIdent "y") (App
                                                (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
 
+exampleT = Lam (mkIdent "d") (Lam (mkIdent "x") (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x"))))))
+
+exampleT1 = (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x")))))
+
+exampleT2 = Lam (mkIdent "x") (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x")))))
+
 standardCombine :: Exp -> [Exp] -> Exp -> [Exp] -> Exp
 standardCombine (Sc ar1 p1 is1) args1 (Sc ar2 p2 is2) args2 =
-  if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 6 then -- FIXME: parameterise this
+  if getHoles p1 + getHoles p2 <= 6 && ar1 + ar2 - 1 <= 7
+     && not (p1 == X && p2 == At X (At X (At X (At X X)))) -- avoid patttern 64
+  then -- FIXME: parameterise this
     let
       c = Sc (ar1 + ar2 - 1) (At p1 p2) (map redirect is1 ++ map (+ length args1) is2)
       redirect i = if i == ar1 - 1 then ar1 + ar2 - 2 else i
     in foldl App c (args1 ++ args2)
-  else if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 5 then -- x is not used on right, append left
+  else if notElem (length args2) is2 && getHoles p1 <= 5 && ar1 <= 6 then -- x is not used on right, append left
          let
            c = Sc (ar1 + 1) (At p1 X) (map redirect is1 ++ [length args1])
            redirect i = if i == ar1 - 1 then ar1 else i
          in foldl App c (args1 ++ [etaRewrite a2Old])
-  else if getHoles p1 <= 4 && ar1 <= 5 then -- 6 - 2 = 4; 6 - 1 = 5; append left
+  else if getHoles p1 <= 4 && ar1 <= 6 then -- 6 - 2 = 4; 6 - 1 = 5; append left
          let
            c = Sc (ar1 + 1) (At p1 (At X X)) (map redirect is1 ++ [length args1, length args1 + 1])
            redirect i = if i == ar1 - 1 then ar1 else i
          in foldl App c (args1 ++ [etaRewrite a2])
-  else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 5 then -- x not used on left, append on right
+  else if notElem (length args1) is1 && getHoles p2 <= 5 && ar2 <= 6 then -- x not used on left, append on right
          let c = Sc (ar2 + 1) (At X p2) (0 : map (+ 1) is2)
          in foldl App c (etaRewrite a1Old : args2)
-  else if getHoles p2 <= 4 && ar2 <= 5 then -- append right
+  else if getHoles p2 <= 4 && ar2 <= 6 then -- append right
          let
            c = Sc (ar2 + 1) (At (At X X) p2) ([0, length args2 + 1] ++ map (+ 1) is2)
          in foldl App c (etaRewrite a1 : args2)
@@ -1203,6 +1213,36 @@ mkAp :: ExpCa -> [ExpCa] -> ExpCa
 mkAp e [] = e
 mkAp e (x:xs) = mkAp (AppCa e x) xs
 
+-- Baseline scheme
+
+compileBase :: Exp -> Exp
+compileBase ae =
+  case ae of
+    App f a -> App (compileBase f) (compileBase a)
+    Lam x a -> abstractBase x a
+    _ -> ae
+
+abstractBase :: Ident -> Exp -> Exp
+abstractBase x ae =
+  case ae of
+    Var y -> if x == y then scI else App scK (Var y)
+    App f a ->
+      combineBase (abstractBase x f) (abstractBase x a) 
+    Lam y e -> abstractBase x $ abstractBase y e
+    _ -> App scK ae
+
+combineBase :: Exp -> Exp -> Exp
+combineBase a1 a2 =
+  let
+    (c1, args1) = spine a1
+    (c2, args2) = spine a2
+  in
+    case (c1, c2) of
+      (Sc ar1 p1 is1, Sc ar2 p2 is2) -> 
+        standardCombine c1 args1 c2 args2
+      _ -> app2 scS a1 a2 -- try expend first? (seems never triggered)
+  
+
 -- Achieve fully laziness (see John Hughes's paper: https://dl.acm.org/doi/abs/10.1145/800068.802129)
 
 compileExpLazy :: Exp -> Exp
@@ -1219,7 +1259,7 @@ abstractLazy x ae =
   case ae of
     Var y -> if x == y then scI else App scK (Var y)
     App f a ->
-      combineLazy (abstractLazy x f) (abstractLazy x a)
+      combineLazy (abstractLazy x f) (abstractLazy x a) 
     Lam y e -> abstractLazy x $ (argReorder x) . etaRewrite $ abstractLazy y e
     _ -> App scK ae 
 
@@ -1233,19 +1273,20 @@ combineLazy a1 a2 =
       (Sc ar1 p1 is1, Sc ar2 p2 is2) -> 
         -- create bigger "free expression" using (S (Ka) (K b) = K (a b))
         -- TODO: maybe some more test here to avoid "not interesting" free expressions
-        if a1NotUsed && a2NotUsed then
+        if not a1IsUnary || not a2IsUnary then
+          error "non unary form"
+        else if a1NotUsed && a2NotUsed then
           let
             a1Old = etaRewrite $ discardSc c1 args1
             a2Old = etaRewrite $ discardSc c2 args2
           in
             App scK (App a1Old a2Old)
-        else --if not a1IsUnary || not a2IsUnary then
-          combineSc a1 a2
-        -- else
-          -- standardCombine c1 args1 c2 args2
+            -- standardCombine c1 args1 c2 args2
+        else
+          standardCombine c1 args1 c2 args2
         where
-          a1NotUsed = notElem (length args1) is1
-          a2NotUsed = notElem (length args2) is2
+          a1NotUsed = notElem (length args1) is1 -- && length args1 < ar1 
+          a2NotUsed = notElem (length args2) is2 -- && length args2 < ar2
           a1IsUnary = ar1 == length args1 + 1
           a2IsUnary = ar2 == length args2 + 1
       _ -> app2 scS a1 a2 -- try expend first? (seems never triggered)
