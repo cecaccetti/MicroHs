@@ -323,6 +323,10 @@ takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
 gotCha = Lam (mkIdent "x") (Lam (mkIdent "y") (App
                                                (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
 
+gotCha' = (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))
+
+gotCha'' = (Lam (mkIdent "y") (App (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
+
 exampleT = Lam (mkIdent "d") (Lam (mkIdent "x") (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x"))))))
 
 exampleT1 = (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x")))))
@@ -1260,7 +1264,21 @@ abstractLazy x ae =
     Var y -> if x == y then scI else App scK (Var y)
     App f a ->
       combineLazy (abstractLazy x f) (abstractLazy x a) 
-    Lam y e -> abstractLazy x $ (argReorder x) . etaRewrite $ abstractLazy y e
+    Lam y e ->
+      let
+        tmp = argReorder x . etaRewrite $ abstractLazy y e
+        -- only keep interesting free expressions
+        interesting :: Exp -> Bool
+        interesting ex =
+          case ex of
+            App f a ->
+              let (c, args) = spine ex in
+                case c of
+                  Sc {} -> foldr (||) False (map interesting args) 
+                  _ -> True -- (e1 e2 ... en)
+            _ -> False -- singleton
+        abst = if interesting tmp then abstractLazy else abstractSc
+      in abst x tmp
     _ -> App scK ae 
 
 combineLazy :: Exp -> Exp -> Exp
@@ -1274,7 +1292,8 @@ combineLazy a1 a2 =
         -- create bigger "free expression" using (S (K a) (K b) = K (a b))
         -- TODO: maybe some more test here to avoid "not interesting" free expressions
         if not a1IsUnary || not a2IsUnary then
-          error "non unary form"
+          -- error "non unary form"
+          combineSc a1 a2
         else if a1NotUsed && a2NotUsed && interesting then
           let
             a1Old = etaRewrite $ discardSc c1 args1
