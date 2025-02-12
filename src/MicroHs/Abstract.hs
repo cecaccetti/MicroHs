@@ -160,8 +160,8 @@ scK4 = Sc 5 X [0]
 
 compileOpt :: Exp -> Exp
 -- compileOpt = compileBase . removeSKI . opInfix -- baseline method
--- compileOpt = etaRewrite . compileExpSc . removeSKI . opInfix -- minimising combinator count
-compileOpt = etaRewrite . compileExpLazy . removeSKI . opInfix -- fully-laziness/self-optimising
+compileOpt = etaRewrite . compileExpSc . removeSKI . opInfix -- minimising combinator count
+-- compileOpt = etaRewrite . compileExpLazy . removeSKI . opInfix -- fully-laziness/self-optimising
 -- compileOpt = removeSKI . improveT . compileExp  . opInfix -- ski from microhs
 -- compileOpt = db2e . unify . e2db . removeSKI . improveT . compileExp  . opInfix -- cecil's method
 
@@ -226,6 +226,7 @@ abstractSc x ae =
     App f a ->
       combineSc (abstractSc x f) (abstractSc x a) -- put etaRewrite here will make results worse
     Lam y e -> abstractSc x $ argReorder x . etaRewrite $ abstractSc y e
+    -- Lit (LPrim "Y") -> ae
     Lit _ -> App scK ae 
     Sc ar pt is -> -- App scK ae
       if ar < 7 -- FIXME: parameterise this (maybe allow 7??)
@@ -319,13 +320,15 @@ takeWhile4' = Lam (mkIdent "q2") (App (App (Var (mkIdent "q2")) (Var (mkIdent "[
 
 takeWhile' = Lam (mkIdent "q1") (App (Var (mkIdent "Y")) takeWhile4)
 
--- shouldn't we create: gotCha x y a b = x a y?
-gotCha = Lam (mkIdent "x") (Lam (mkIdent "y") (App
-                                               (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
+gotCha = Lam (mkIdent "x") (Lam (mkIdent "y")
+                            (App (Var (mkIdent "y"))
+                                 (App (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a")))) (Var (mkIdent "x")))))
 
 gotCha' = (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))
 
-gotCha'' = (Lam (mkIdent "y") (App (App (Var (mkIdent "x")) (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a"))))) (Var (mkIdent "y"))))
+gotCha'' = (Lam (mkIdent "y")
+                            (App (Var (mkIdent "y"))
+                                 (App (Lam (mkIdent "a") (Lam (mkIdent "b") (Var (mkIdent "a")))) (Var (mkIdent "x")))))
 
 exampleT = Lam (mkIdent "d") (Lam (mkIdent "x") (Lam (mkIdent "y") (App (App (App (Var (mkIdent "snd")) (Var (mkIdent "d"))) (Var (mkIdent "y"))) (App (App (App (Var (mkIdent "fst1")) (Var (mkIdent "d"))) (Var (mkIdent "x"))) (Var (mkIdent "x"))))))
 
@@ -376,6 +379,7 @@ combineSc a1 a2 =
     (c2, args2) = spine a2
   in
     case (c1, c2) of
+      -- (Lit (LPrim "Y"), _) -> App c1 a2
       (Sc ar1 p1 is1, Sc ar2 p2 is2) ->
         if a1IsUnary && a2IsUnary then -- standard combine
           standardCombine c1 args1 c2 args2
@@ -401,7 +405,7 @@ combineSc a1 a2 =
                 getHoles p1 + length (filter (== length args1 + 1) is1) * (getHoles p2 - 1) <= 6 then -- a1 is not unary, will absorb a2
           let
             updatePat p is = updatePatWith p is p2
-            newAr = ar1 + ar2 - 2
+            newAr = ar1 + ar2 - 2 -- no bound testing here?
             newPat = updatePat p1 is1
             redirect i 
               | i == length args1 = 42
@@ -1266,7 +1270,7 @@ abstractLazy x ae =
       combineLazy (abstractLazy x f) (abstractLazy x a) 
     Lam y e ->
       let
-        tmp = argReorder x . etaRewrite $ abstractLazy y e
+        tmp = etaRewrite . argReorder x $ abstractLazy y e
         -- only keep interesting free expressions
         interesting :: Exp -> Bool
         interesting ex =
@@ -1278,6 +1282,7 @@ abstractLazy x ae =
                   _ -> True -- (e1 e2 ... en)
             _ -> False -- singleton
         abst = if interesting tmp then abstractLazy else abstractSc
+        -- abst = abstractLazy
       in abst x tmp
     _ -> App scK ae 
 
@@ -1290,11 +1295,12 @@ combineLazy a1 a2 =
     case (c1, c2) of
       (Sc ar1 p1 is1, Sc ar2 p2 is2) -> 
         -- create bigger "free expression" using (S (K a) (K b) = K (a b))
-        -- TODO: maybe some more test here to avoid "not interesting" free expressions
         if not a1IsUnary || not a2IsUnary then
           -- error "non unary form"
           combineSc a1 a2
-        else if a1NotUsed && a2NotUsed && interesting then
+        else if a1NotUsed && a2NotUsed
+                && interesting
+             then
           let
             a1Old = etaRewrite $ discardSc c1 args1
             a2Old = etaRewrite $ discardSc c2 args2
@@ -1308,9 +1314,9 @@ combineLazy a1 a2 =
           a2NotUsed = notElem (length args2) is2 -- && length args2 < ar2
           a1IsUnary = ar1 == length args1 + 1
           a2IsUnary = ar2 == length args2 + 1
-          interesting = length args1 == 1 && notSc (head args1)
-          notSc (Sc _ _ _) = False
-          notSc _ = True
+          interesting = not (length args1 == 1 && isSc (head args1))
+          isSc (Sc {}) = True
+          isSc _ = False
       _ -> app2 scS a1 a2 -- try expend first? (seems never triggered)
           
 -- for (C e1 e2 ... en), compress the same args, and reorder the args so that etaRewrite may apply
@@ -1367,13 +1373,4 @@ dupPair args =
       Nothing -> go es (i + 1)
     removeNth n xs = take n xs ++ drop (n + 1) xs
 
-
-
-
-
-
-
-
-
-  
 

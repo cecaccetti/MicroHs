@@ -50,7 +50,8 @@ comb :: Int -> Pat -> [Int] -> (String -> String)
 comb art p is = ("comBuilder(" ++) .
                 ((show art ++ ",") ++) .
                 ((show (getPatNum p) ++ ",") ++) .
-                ((listPrint is ++ "),\n") ++)
+                ((listPrint is ++ "), // ") ++) .
+                ((show p ++ "\n") ++)
 
 fun :: Int -> (String -> String)
 fun n = ("funBuilder(" ++) . (show n ++) . ("),\n" ++)

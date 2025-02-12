@@ -173,6 +173,7 @@ length =
 
 sum :: [Int] -> Int
 sum = foldr (+) 0
+-- sum = foldl (+) 0 -- this will make Mss result worse for SKI+
 
 null :: forall a . [a] -> Bool
 null [] = True

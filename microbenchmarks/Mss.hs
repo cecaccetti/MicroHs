@@ -18,9 +18,9 @@ segments xs = concatMap tails (inits xs)
 
 mss :: [Int] -> Int
 mss xs = maximum (map sum (segments xs))
- 
+
 -- Small main
-main = mss [(0-20)..20] -- mss [1..3]-- sum (takeWhile (<= 3) [2,2,2,3,2,19,32])--maximum [1..2] -- foldl (-) 0 [1..3]--  -- (enumFromTo (0 - 20) 20)
+main = mss [(0-20)..20]
 
 {-
 -- Large main
