@@ -1,4 +1,4 @@
-module MicroHs.GenRom(genRom) where
+module MicroHs.GenRom(genRom,killDead) where
 import Prelude(); import MHSPrelude
 import Data.List
 import qualified MicroHs.IdentMap as M
@@ -8,23 +8,18 @@ import MicroHs.Exp
 import MicroHs.Expr(Lit(..), showLit, errorMessage, HasLoc(..))
 import MicroHs.Ident(Ident(..), showIdent, mkIdent)
 import MicroHs.State
-import MicroHs.Abstract
 
 -- generate Chisel ROM file
 
 header :: String
 header = "\
- \package benchmarks\n\
+ \package mutator\n\
  \import common.Helper._\n\
  \ \n"
 
 object :: String -> (String -> String) -> (String -> String)
 object name r =
-  (("object " ++ name ++ " extends Benchmark {\n") ++) . r . ("\n}" ++)
-
-defToString :: String -> (String -> String)
-defToString name =
-  ((("override def toString() = \"" ++ name) ++ "\" \n") ++)
+  (("object " ++ name ++ " {\n") ++) . r . ("\n}" ++)
 
 freeText :: String -> (String -> String)
 freeText t = (t ++)
@@ -50,8 +45,7 @@ comb :: Int -> Pat -> [Int] -> (String -> String)
 comb art p is = ("comBuilder(" ++) .
                 ((show art ++ ",") ++) .
                 ((show (getPatNum p) ++ ",") ++) .
-                ((listPrint is ++ "), // ") ++) .
-                ((show p ++ "\n") ++)
+                ((listPrint is ++ "),\n") ++)
 
 fun :: Int -> (String -> String)
 fun n = ("funBuilder(" ++) . (show n ++) . ("),\n" ++)
@@ -104,7 +98,7 @@ listPrint [] = "List()"
 listPrint xs = "List(" ++ inner ++ ")"
   where
     inner = concat $ zipWith (\x y -> show x ++ y) xs (replicate (length xs - 1) ", " ++ [""])
-
+    
 killDead :: (Ident, [LDef]) -> [LDef]
 killDead (mainName, ds) =
   let
@@ -128,15 +122,14 @@ killDead (mainName, ds) =
     (_,(_, _, res)) = runState (dfs mainName) (0, M.empty, [])
     
     ref i = Var $ mkIdent $ "FUN" ++ show i
-    findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "No definition found for: " ++ showIdent n) $
+    findIdentIn n m = fromMaybe (errorMessage (getSLoc n) $ "AA No definition found for: " ++ showIdent n) $
                       M.lookup n m
-  in res
+  in res    
 
-genRom :: String -> (Ident, [LDef]) -> String
-genRom progName (mainName, ldefs) =
+genRom :: (Ident, [LDef]) -> String
+genRom (mainName, ldefs) =
   let
-    -- ds = killDead (mainName, inlineSingle ldefs)
-    ds = finalEtaApply $ inlineSingle ldefs
+    ds = inlineSingle ldefs
     dMap = M.fromList ds
     -- state: 1. fun counter; 2. app counter; 3. comb counter; 4. function map; 5. resulting string
     dfs :: Ident -> State (Int, Int, Int, M.Map Exp, String -> String) ()
@@ -201,9 +194,7 @@ genRom progName (mainName, ldefs) =
      "// Functions in this file: " ++ show funCount ++ "\n"
      ++ "// Apps in this file: " ++ show appCount ++ "\n"
      ++ "// Combinators in this file: " ++ show combCount ++ "\n"
-     ++ object progName (defToString progName .
-                         val "combinatorCount" (freeText (show combCount ++ "\n")) .
-                         prog "prog" res) ""
+     ++ object "ProgramBin" (prog "prog" res) ""
 
 atom :: Exp -> (String -> String)
 atom ae =
@@ -242,6 +233,3 @@ inlineSingle defs =
         
     (_, res) = runState (inlineSingle' defs) defs
   in res
-
-finalEtaApply :: [LDef] -> [LDef]
-finalEtaApply = map (\(i, def) -> (i, etaApply def))

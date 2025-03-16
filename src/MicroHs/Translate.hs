@@ -63,6 +63,8 @@ primTable = [
   ("K3", primitive "K3"),
   ("K4", primitive "K4"),
   ("C'B", primitive "C'B"),
+  ("gpio0_out", primitive "gpio0_out"),
+  ("ret", primitive "ret"),
   ("+", primitive "+"),
   ("-", primitive "-"),
   ("*", primitive "*"),

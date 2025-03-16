@@ -165,6 +165,7 @@ isOperChar '\x21d2' = True  -- =>
 isOperChar '\x2192' = True  -- ->
 isOperChar '\x2190' = True  -- <-
 isOperChar '\x2200' = True  -- forall
+isOperChar '\x2206' = True  -- gpio_out
 isOperChar _ = False
 
 isIdentChar :: Char -> Bool

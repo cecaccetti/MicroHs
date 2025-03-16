@@ -44,6 +44,7 @@ data Exp
   | Lam Ident Exp
   | Lit Lit
   | Sc Arity Pat [Idx]
+  | ExpLink Int
   deriving (Eq)
 
 instance MRnf Exp where
@@ -75,6 +76,7 @@ ppExp ae =
     App f a -> parens $ ppExp f <+> ppExp a
     Lam i e -> parens $ text "\\" <> ppIdent i <> text "." <+> ppExp e
     Lit l -> text (showLit l)
+    ExpLink n -> text $ "link " ++ (show n)
     Sc a p is -> text $ "<" ++ show a ++ ","
                      ++ show p ++ ","
                      ++ show is
@@ -101,6 +103,7 @@ substExp si se ae =
                    Lam i (substExp si se e)
     Lit _ -> ae
     Sc _ _ _ -> ae
+    ExpLink _  -> ae
 
 -- This naive freeVars seems to be the fastest.
 freeVars :: Exp -> [Ident]
@@ -111,6 +114,7 @@ freeVars ae =
     Lam i e -> deleteAllBy (==) i (freeVars e)
     Lit _ -> []
     Sc _ _ _ -> []
+    ExpLink _  -> []
 
 allVarsExp :: Exp -> [Ident]
 allVarsExp ae =
@@ -120,6 +124,7 @@ allVarsExp ae =
     Lam i e -> i : allVarsExp e
     Lit _ -> []
     Sc _ _ _ -> []
+    ExpLink _  -> []
 
 lams :: [Ident] -> Exp -> Exp
 lams xs e = foldr Lam e xs

@@ -58,6 +58,10 @@ infixr 9 .
 infixl 6 +,-
 infixl 7 *
 
+ret = primitive "ret"
+
+gpio0_out x = primitive "gpio0_out"
+
 (+) :: Int -> Int -> Int
 (+) = primitive "+"
 
@@ -173,7 +177,6 @@ length =
 
 sum :: [Int] -> Int
 sum = foldr (+) 0
--- sum = foldl (+) 0 -- this will make Mss result worse for SKI+
 
 null :: forall a . [a] -> Bool
 null [] = True

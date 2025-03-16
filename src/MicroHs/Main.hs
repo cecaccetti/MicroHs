@@ -24,6 +24,8 @@ import MicroHs.TypeCheck(tModuleName)
 import MicroHs.Interactive
 import MicroHs.MakeCArray
 import MicroHs.GenRom
+import MicroHs.FunAsm
+import MicroHs.FunCodeGen
 import System.Cmd
 import System.Exit
 import System.FilePath
@@ -240,14 +242,12 @@ mainCompile flags mn = do
     t2 <- getTimeMilli
     when (verbosityGT flags 0) $
       putStrLn $ "final pass            " ++ padLeft 6 (show (t2-t1)) ++ "ms"
-
     when (speed flags) $ do
       let fns = filter (isSuffixOf ".hs") $ map (slocFile . slocIdent) $ cachedModuleNames cash
       locs <- sum . map (length . lines) <$> mapM readFile fns
       putStrLn $ show (locs * 1000 `div` (t2 - t0)) ++ " lines/s"
 
     let cCode = makeCArray flags outData ++ makeFFI flags allDefs
-
     -- Decode what to do:
     --  * file ends in .comb: write combinator file
     --  * file ends in .c: write C version of combinator
@@ -256,10 +256,36 @@ mainCompile flags mn = do
     if outFile `hasTheExtension` ".comb" then
       writeFile outFile outData
      else if outFile `hasTheExtension` ".c" then
-      writeFile outFile cCode
-     else if ".scala" `isSuffixOf` outFile then
-      writeFile outFile $ genRom (takeWhile (/= '.') outFile) cmdl
-     else do
+      writeFile outFile cCode 
+     else if ".scala" `isSuffixOf` outFile then do
+      writeFile outFile $ genRom cmdl
+      putStrLn $ (show cmdl)
+     else if ".s" `isSuffixOf` outFile then do
+      --writeFile outFile $ genRom cmdl
+        
+      let compiled = (killDead cmdl) 
+      let patterns = tail(concat(take 6 sizes)) 
+      
+      let inord = map (\(id,x) -> (id, inorder patterns (subsX x))) compiled   
+      
+      let hprint = concat (hprintProg inord)
+      let pprint = concat (pprintProg inord)
+      
+      --let asm = (map (\(id,x) -> (id, toAsm patterns (showIdent id) x [] 1 )) compiled )
+      
+      --putStrLn $ (show compiled)
+      
+      --putStrLn $ (show (map (\x -> convPat x patterns 0) patterns ))
+     
+      --putStrLn $ (show patterns )
+      --putStrLn $ (show compiled )
+      --putStrLn $ ( pprint) 
+      
+      writeFile outFile hprint
+      writeFile (outFile ++ "s") pprint 
+      
+      
+     else do  
        (fn, h) <- openTmpFile "mhsc.c"
        hPutStr h cCode
        hClose h

@@ -223,6 +223,8 @@ compileModule flags impt mn pathfn file = do
         nonOps = filter (\(_, e) -> not $ isOp e) (tBindingsOf dmdl)
         subOps :: Exp -> Exp
         subOps (Var i)
+          | i == mkIdent "NanoPrelude.gpio0_out" = Lit (LPrim "gpio0_out")
+          | i == mkIdent "NanoPrelude.ret" = Lit (LPrim "ret")
           | i == mkIdent "NanoPrelude.+" = Lit (LPrim "+")
           | i == mkIdent "NanoPrelude.-" = Lit (LPrim "-")
           | i == mkIdent "NanoPrelude.*" = Lit (LPrim "*")
